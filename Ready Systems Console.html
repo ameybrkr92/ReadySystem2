@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ready Systems — Operations Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Map design tokens to oklch values so semantic class names + opacity modifiers work.
+    const mk = (v) => (arg) => {
+      const op = arg && arg.opacityValue;
+      return (op === undefined || op === null) ? v : v.replace(/\)\s*$/, " / " + op + ")");
+    };
+    const TOK = {
+      paper:        "oklch(0.985 0.005 90)",
+      panel:        "oklch(1 0 0)",
+      ink:          "oklch(0.20 0.012 250)",
+      primary:      "oklch(0.42 0.06 175)",
+      primaryFg:    "oklch(0.985 0.005 90)",
+      primarySoft:  "oklch(0.94 0.025 175)",
+      amber:        "oklch(0.62 0.15 60)",
+      statusDone:   "oklch(0.58 0.13 155)",
+      statusActive: "oklch(0.55 0.13 230)",
+      statusStuck:  "oklch(0.58 0.20 25)",
+      statusPending:"oklch(0.70 0.01 250)",
+      secondary:    "oklch(0.96 0.008 180)",
+      muted:        "oklch(0.955 0.005 90)",
+      mutedFg:      "oklch(0.48 0.015 250)",
+      accent:       "oklch(0.94 0.025 175)",
+      destructive:  "oklch(0.58 0.20 25)",
+      border:       "oklch(0.91 0.008 180)",
+      input:        "oklch(0.92 0.008 180)",
+      sidebar:      "oklch(0.22 0.015 200)",
+      sidebarFg:    "oklch(0.92 0.008 180)",
+      sidebarBorder:"oklch(0.28 0.015 200)",
+      sidebarAccent:"oklch(0.30 0.04 180)",
+    };
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            background: mk(TOK.paper),
+            foreground: mk(TOK.ink),
+            card: mk(TOK.panel),
+            "card-foreground": mk(TOK.ink),
+            popover: mk(TOK.panel),
+            primary: mk(TOK.primary),
+            "primary-foreground": mk(TOK.primaryFg),
+            "primary-soft": mk(TOK.primarySoft),
+            secondary: mk(TOK.secondary),
+            "secondary-foreground": mk(TOK.ink),
+            muted: mk(TOK.muted),
+            "muted-foreground": mk(TOK.mutedFg),
+            accent: mk(TOK.accent),
+            "accent-foreground": mk(TOK.primary),
+            destructive: mk(TOK.destructive),
+            border: mk(TOK.border),
+            input: mk(TOK.input),
+            ring: mk(TOK.primary),
+            ink: mk(TOK.ink),
+            paper: mk(TOK.paper),
+            panel: mk(TOK.panel),
+            amber: mk(TOK.amber),
+            sidebar: mk(TOK.sidebar),
+            "sidebar-foreground": mk(TOK.sidebarFg),
+            "sidebar-border": mk(TOK.sidebarBorder),
+            "sidebar-accent": mk(TOK.sidebarAccent),
+          },
+          fontFamily: {
+            display: ['Fraunces', 'Georgia', 'serif'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    :root {
+      --radius: 0.5rem;
+      --paper: oklch(0.985 0.005 90);
+      --panel: oklch(1 0 0);
+      --ink:   oklch(0.20 0.012 250);
+      --primary: oklch(0.42 0.06 175);
+      --primary-foreground: oklch(0.985 0.005 90);
+      --primary-soft: oklch(0.94 0.025 175);
+      --amber: oklch(0.62 0.15 60);
+      --status-done:    oklch(0.58 0.13 155);
+      --status-active:  oklch(0.55 0.13 230);
+      --status-stuck:   oklch(0.58 0.20 25);
+      --status-pending: oklch(0.70 0.01 250);
+      --background: var(--paper);
+      --foreground: var(--ink);
+      --muted: oklch(0.955 0.005 90);
+      --muted-foreground: oklch(0.48 0.015 250);
+      --border: oklch(0.91 0.008 180);
+      --input: oklch(0.92 0.008 180);
+      --ring: var(--primary);
+    }
+
+    html, body {
+      background-color: var(--background);
+      color: var(--foreground);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-feature-settings: "cv11","ss01";
+      margin: 0;
+    }
+    h1, h2, h3, h4 { font-family: 'Fraunces', Georgia, serif; letter-spacing: -0.01em; }
+    .font-display { font-family: 'Fraunces', Georgia, serif; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px;
+    }
+
+    .card-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 2px);
+      box-shadow: 0 1px 0 0 oklch(0.20 0.012 250 / 0.04), 0 1px 2px 0 oklch(0.20 0.012 250 / 0.04);
+    }
+
+    /* tw-animate-css subset used by the toast */
+    @keyframes om-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-in { animation: om-in 0.22s ease-out; }
+    @keyframes om-slide { from { transform: translateX(28px); } to { transform: translateX(0); } }
+
+    /* Custom scrollbars to match the calm aesthetic */
+    *::-webkit-scrollbar { width: 9px; height: 9px; }
+    *::-webkit-scrollbar-thumb { background: oklch(0.85 0.01 200); border-radius: 6px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="js/store.jsx"></script>
+  <script type="text/babel" src="js/ui.jsx"></script>
+  <script type="text/babel" src="js/shell.jsx"></script>
+  <script type="text/babel" src="js/workspace.jsx"></script>
+  <script type="text/babel" src="js/director.jsx"></script>
+  <script type="text/babel" src="js/planning.jsx"></script>
+  <script type="text/babel" src="js/release.jsx"></script>
+  <script type="text/babel" src="js/schedule.jsx"></script>
+  <script type="text/babel" src="js/costing.jsx"></script>
+  <script type="text/babel" src="js/purchase.jsx"></script>
+  <script type="text/babel" src="js/stores.jsx"></script>
+  <script type="text/babel" src="js/app.jsx"></script>
+</body>
+</html>
