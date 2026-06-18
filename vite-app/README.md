@@ -65,4 +65,4 @@ public/
   prototype files are stored inline in the browser (8 MB cap); move to object storage in production.
 - **3D layout board**: the *View 3D* link on any "Layout board" document opens `/layout-3d.html`.
 
-See `Documentation.html` (project root) for the full product brief, review and roadmap.
+See `Ready-Systems-Presentation.html` (project root) for the full product brief, review and roadmap.

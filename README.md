@@ -6,8 +6,8 @@ config → get a harness BOM and a cost) and shows the four target modules — P
 Purchase, Stores, Quality — connected by one job ID (the Siemens W/O No).
 
 > No backend by design. All state lives in the browser (localStorage) so the POC runs
-> anywhere with zero infrastructure. The roadmap (see `Documentation.html`) covers Phase 1
-> (bring everything online) and Phase 2 (the intelligence layer).
+> anywhere with zero infrastructure. The roadmap (see `Ready-Systems-Presentation.html`) covers
+> Phase 1 (bring everything online) and Phase 2 (the intelligence layer).
 
 ## What's here
 
@@ -17,8 +17,7 @@ Purchase, Stores, Quality — connected by one job ID (the Siemens W/O No).
 | `Ready Systems Console.html` | The app (loads `js/*.jsx` via in-browser Babel) |
 | `js/` | App modules: store + costing engine, order workspace, planning, costing, purchase, stores, quality |
 | `layout-3d.html` | 3D layout-board & harness visualiser (Three.js) |
-| `Product-Guide.html` | **Product guide / user manual** — how the console works end to end (workspace, modules, lifecycle gates, release notes) |
-| `Documentation.html` / `Documentation-part2.html` | Partner brief: phasing plan, modules, review, roadmap |
+| `Ready-Systems-Presentation.html` | **Client presentation deck** — slide-structured (one panel = one slide) for pitching to Ready Systems; print to PDF or copy into PowerPoint |
 | `vite-app/` | Optional production build scaffold (Vite+TS) — **behind the static POC**, regenerate from final design before using |
 
 ## Run locally

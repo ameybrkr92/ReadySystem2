@@ -175,12 +175,9 @@ function Shell({ session, onLogout, onSwitchRole, nav, current, onNav, children 
         )}
         <div className="rounded-md border border-sidebar-border p-3 text-xs text-paper/60">
           <div className="flex flex-col gap-1.5 pb-2 mb-2 border-b border-sidebar-border">
-            <a href="Product-Guide.html" target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 font-medium text-paper/85 hover:text-paper">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5"><path d="M4 5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5z" strokeLinejoin="round" /><path d="M13 3v5h5" strokeLinejoin="round" /></svg>
-              Product guide <span className="text-paper/40">↗</span>
-            </a>
-            <a href="Documentation.html" target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 text-paper/65 hover:text-paper">
-              Phasing brief <span className="text-paper/40">↗</span>
+            <a href="Ready-Systems-Presentation.html" target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 font-medium text-paper/85 hover:text-paper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5"><rect x="3" y="4" width="18" height="13" rx="1.5" strokeLinejoin="round" /><path d="M8 21h8M12 17v4" strokeLinecap="round" /></svg>
+              Presentation <span className="text-paper/40">↗</span>
             </a>
           </div>
           Ready Systems · Wire harness · MV switchgear · 8DJHST / 8FB20 contract assembly.
