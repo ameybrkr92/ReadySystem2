@@ -306,24 +306,35 @@ function FinalModal({ woNo, onClose }) {
   ]);
   const [checkedBy, setCheckedBy] = stUseState("Meera Joshi");
   const [disp, setDisp] = stUseState("Pass");
+  const [notes, setNotes] = stUseState("");
 
   function save() {
+    const recId = uid();
     setStoreState(s => {
       const existing = s.finalQcJobs.find(j => j.woNo === woNo);
-      if (existing) existing.status = disp;
+      if (existing) { existing.status = disp; existing.createdAt = todayISO(); }
       else s.finalQcJobs.unshift({ id: uid(), woNo, status: disp, createdAt: todayISO() });
       s.qcRecords.unshift({
-        id: uid(), kind: "Final", refId: woNo, refLabel: `Final assembly · ${woNo}`,
+        id: recId, kind: "Final", refId: woNo, refLabel: `Final assembly · ${woNo}`,
         checkedBy, date: todayISO(), rows, disposition: disp,
       });
       const o = s.orders.find(x => x.woNo === woNo);
       if (o) {
-        if (disp === "Pass") { o.stage = "Dispatch"; o.dispatchedDate = todayISO(); o.stuck = null; }
-        else { o.stage = "Final QC"; o.stuck = { reason: "Final QC HOLD" }; }
+        if (disp === "Pass") { o.stage = "Dispatch"; o.dispatchedDate = todayISO(); o.stuck = null; o.rework = null; }
+        else if (disp === "Reject") {
+          // Reject → back to the floor for rework (recovery loop). Must be re-built
+          // and re-sent to QC via "Mark build complete".
+          o.stage = "Build";
+          o.rework = { reason: notes || "Final QC reject — rework required", since: todayISO(), qcRecordId: recId };
+          o.stuck = null;
+        } else { // Hold
+          o.stage = "Final QC";
+          o.stuck = { reason: notes ? `Final QC HOLD — ${notes}` : "Final QC HOLD" };
+        }
       }
       return s;
     });
-    logActivity("Quality", `Final QC ${disp.toUpperCase()} — ${woNo}`, disp === "Hold" ? "alert" : undefined);
+    logActivity("Quality", `Final QC ${disp.toUpperCase()} — ${woNo}`, (disp === "Hold" || disp === "Reject") ? "alert" : undefined);
     toast(`Final QC: ${disp}`);
     onClose();
   }
@@ -344,15 +355,26 @@ function FinalModal({ woNo, onClose }) {
           ))}
         </Table>
       </div>
-      <div className="mt-5 grid md:grid-cols-2 gap-4 items-end">
+      <div className="mt-5 grid md:grid-cols-2 gap-4">
         <Field label="Disposition">
           <Select value={disp} onChange={e => setDisp(e.target.value)}>
             <option value="Pass">Pass → ready to dispatch</option>
-            <option value="Hold">Hold</option>
+            <option value="Hold">Hold → fix in place, re-inspect</option>
+            <option value="Reject">Reject → back to floor for rework</option>
           </Select>
         </Field>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save}>Submit final QC</Button></div>
+        <Field label={disp === "Pass" ? "Notes (optional)" : "Reason / defect"}>
+          <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder={disp === "Reject" ? "e.g. continuity fail on feeder 2" : "Optional note"} />
+        </Field>
       </div>
+      {disp !== "Pass" && (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          {disp === "Reject"
+            ? "Reject sends the job back to Build for rework — it must be re-built and marked complete again before it returns to this gate."
+            : "Hold keeps the job at this gate for in-place fixing and re-inspection."}
+        </p>
+      )}
+      <div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save}>Submit final QC</Button></div>
     </Modal>
   );
 }
@@ -361,10 +383,16 @@ function FinalQC({ readOnly }) {
   const { useStore, Card, Pill, Button, Table, Empty, fmtDate, todayISO } = window;
   const jobs = useStore(s => s.finalQcJobs);
   const orders = useStore(s => s.orders);
-  const merged = [
-    ...jobs,
-    ...orders.filter(o => (o.stage === "Build" || o.stage === "Final QC") && !jobs.some(j => j.woNo === o.woNo)).map(o => ({ id: `auto-${o.id}`, woNo: o.woNo, status: "Pending", createdAt: todayISO() })),
-  ];
+  // Order-driven queue: a job only reaches Final QC once the floor marks the build
+  // complete (stage → "Final QC"). Jobs still in Build (incl. rework) never appear here.
+  const merged = orders
+    .filter(o => o.stage === "Final QC" || o.stage === "Dispatch")
+    .map(o => {
+      const j = jobs.find(x => x.woNo === o.woNo);
+      const status = o.stage === "Dispatch" ? "Pass" : (j && j.status === "Hold" ? "Hold" : "Pending");
+      return { id: `q-${o.id}`, woNo: o.woNo, status, createdAt: (j && j.createdAt) || o.dispatchedDate || o.dueDate, rework: o.rework };
+    })
+    .sort((a, b) => (a.status === "Pass" ? 1 : 0) - (b.status === "Pass" ? 1 : 0));
   const [open, setOpen] = stUseState(null);
 
   return (
@@ -419,7 +447,7 @@ function Records() {
                 <td className="px-4 py-3"><Pill tone={r.kind === "Incoming" ? "active" : "amber"}>{r.kind}</Pill></td>
                 <td className="px-4 py-3 text-xs">{r.refLabel}</td>
                 <td className="px-4 py-3 text-xs">{r.checkedBy}</td>
-                <td className="px-4 py-3"><Pill tone={r.disposition === "Accept" || r.disposition === "Pass" ? "done" : r.disposition === "Hold" || r.disposition === "Scrap" || r.disposition === "Return" ? "stuck" : "amber"}>{r.disposition}</Pill></td>
+                <td className="px-4 py-3"><Pill tone={r.disposition === "Accept" || r.disposition === "Pass" ? "done" : r.disposition === "Hold" || r.disposition === "Reject" || r.disposition === "Scrap" || r.disposition === "Return" ? "stuck" : "amber"}>{r.disposition}</Pill></td>
               </tr>
             ))}
           </Table>

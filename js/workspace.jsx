@@ -12,9 +12,10 @@ function pipeline(o) {
   const bomLocked = !!o.bomLocked;
   const bomRev = o.bomRev || 1;
   const hasQuote = !!o.quote;
-  const quoteStatus = o.quote ? o.quote.status : null;       // 'sent' | 'approved'
+  const quoteStatus = o.quote ? o.quote.status : null;       // 'sent' | 'approved' | 'rejected'
   const stale = quoteStale(o);
   const approved = quoteStatus === "approved" && !stale;
+  const rejected = quoteStatus === "rejected";
   const shortages = bomLocked ? procurementForOrder(o, getState()).filter(r => r.toOrder > 0) : [];
   const pos = getState().pos.filter(p => p.woNo === o.woNo);
   const allReceived = pos.length > 0 && pos.every(p => p.status === "Received");
@@ -33,13 +34,14 @@ function pipeline(o) {
   else if (!bomLocked) next = { tab: "bom", label: "Review & lock the BOM", hint: "Freeze the harness so costing can begin." };
   else if (stale) next = { tab: "costing", label: "BOM changed — re-send the quote", hint: `BOM is now Rev ${bomRev}; the last quote is out of date.`, warn: true };
   else if (!hasQuote) next = { tab: "costing", label: "Set margin & send the quote", hint: "Price the locked BOM and send it for approval." };
-  else if (quoteStatus === "sent") next = { tab: "costing", label: "Mark the quote approved", hint: "Once the client confirms, approve to open procurement." };
+  else if (rejected) next = { tab: "costing", label: "Client rejected — revise & re-send", hint: o.quote.rejectedReason || "Adjust the quote and send it again.", warn: true };
+  else if (quoteStatus === "sent") next = { tab: "costing", label: "Awaiting client approval", hint: "Record the client's decision once they respond." };
   else if (approved && shortages.length) next = { tab: "procurement", label: `Raise PO for ${shortages.length} short item${shortages.length > 1 ? "s" : ""}`, hint: "Order the material this job is missing." };
   else if (approved && pos.length && !allReceived) next = { tab: "procurement", label: "Awaiting material", hint: "POs raised — receipt updates automatically from Stores.", muted: true };
   else if (approved) next = { tab: "procurement", label: "Material covered — ready to release", hint: "Everything is in stock or received; release from the board.", muted: true };
   else next = null;
 
-  return { bomLocked, bomRev, hasQuote, quoteStatus, approved, stale, shortages, pos, allReceived, inDelivery, sIdx, next };
+  return { bomLocked, bomRev, hasQuote, quoteStatus, approved, rejected, stale, shortages, pos, allReceived, inDelivery, sIdx, next };
 }
 
 const STEPS = [
@@ -48,7 +50,7 @@ const STEPS = [
   { key: "costing", n: 3, label: "Costing & Quote" },
   { key: "approval", n: 4, label: "Approval" },
   { key: "procurement", n: 5, label: "Procurement" },
-  { key: "delivery", n: 6, label: "Build & delivery" },
+  { key: "delivery", n: 6, label: "Build & recovery" },
 ];
 
 function stepState(key, p, o) {
@@ -63,6 +65,7 @@ function stepState(key, p, o) {
       return { status: "done", sub: `Quoted · Rev ${o.quote.rev}` };
     case "approval":
       if (!p.hasQuote) return { status: "locked", sub: "Quote first" };
+      if (p.rejected) return { status: "warn", sub: "Client rejected" };
       if (p.approved) return { status: "done", sub: "Approved" };
       return { status: "current", sub: "Awaiting client" };
     case "procurement":
@@ -201,7 +204,7 @@ function OverviewTab({ order, p, go }) {
         <div className="card-panel p-4">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">{o.quote ? `Quote · Rev ${o.quote.rev}` : "Engine estimate"}</div>
           <div className="mt-1 text-2xl font-display num text-primary">{o.quote ? fmtINR(o.quote.total) : fmtINR(cost.total)}</div>
-          <div className="text-[11px] text-muted-foreground num">{o.quote ? (p.approved ? "Approved" : "Sent — awaiting approval") : "Not quoted yet"} · {cost.marginPct}% margin</div>
+          <div className="text-[11px] text-muted-foreground num">{o.quote ? (p.approved ? `Approved${o.quote.clientRef ? " · " + o.quote.clientRef : ""}` : p.rejected ? "Client rejected" : "Sent — awaiting approval") : "Not quoted yet"} · {cost.marginPct}% margin</div>
         </div>
         <div className="card-panel p-4"><div className="text-xs uppercase tracking-wider text-muted-foreground">Build effort</div><div className="mt-1 text-2xl font-display num">{Math.round(buildMinutes(o.config, o.qty) / 60)}h</div><div className="text-[11px] text-muted-foreground num">{o.qty} units · {feeders.length} feeders each</div></div>
         <div className="card-panel p-4">
@@ -235,7 +238,7 @@ function OverviewTab({ order, p, go }) {
           <Info label="PO date" value={fmtDate(o.poDate)} />
           <Info label="Due date" value={fmtDate(o.dueDate)} />
           <Info label="BOM locked" value={p.bomLocked ? `Rev ${p.bomRev} · ${fmtDate(o.bomSentDate)}` : "Not yet"} />
-          <Info label="Quote" value={o.quote ? `Rev ${o.quote.rev} · ${p.approved ? "Approved" : "Sent"}` : "—"} />
+          <Info label="Quote" value={o.quote ? `Rev ${o.quote.rev} · ${p.approved ? "Approved" : p.rejected ? "Rejected" : "Sent"}` : "—"} />
           <Info label="Dispatched" value={fmtDate(o.dispatchedDate)} />
         </div>
       </Card>
@@ -393,9 +396,10 @@ function BomTab({ order, p }) {
 
 // ---------- Costing & Quote (gated behind BOM lock) ----------
 function CostingTab({ order, p }) {
-  const { computeCosting, updateOrderCosting, saveQuote, approveQuote, logActivity, toast, Card, Button, Field, Input, Empty, Pill, fmtINR, fmtINR2, fmtNum } = window;
+  const { computeCosting, updateOrderCosting, saveQuote, approveQuote, logActivity, toast, Card, Button, Field, Input, Empty, Pill, fmtINR, fmtINR2, fmtNum, fmtDate } = window;
   const o = order;
   const c = computeCosting(o);
+  const [decisionOpen, setDecisionOpen] = wsUseState(false);
   const editable = p.bomLocked && !p.approved;       // can't tweak price after approval (unless revised)
   const setC = (patch) => updateOrderCosting(o.id, patch);
   const bump = (key, delta, min, max) => { const v = Math.min(max, Math.max(min, (c[key]) + delta)); setC({ [key]: +v.toFixed(1) }); };
@@ -460,17 +464,79 @@ function CostingTab({ order, p }) {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="text-sm">
             {!p.hasQuote && <span className="text-muted-foreground">Not quoted yet — send the quote to the client for approval.</span>}
-            {p.hasQuote && !p.approved && <span>Quote <b>Rev {o.quote.rev}</b> · {fmtINR(o.quote.total)} · <Pill tone={p.stale ? "stuck" : "active"}>{p.stale ? "Out of date" : "Sent — awaiting approval"}</Pill></span>}
-            {p.approved && <span>Quote <b>Rev {o.quote.rev}</b> · {fmtINR(o.quote.total)} · <Pill tone="done">Approved</Pill> — costing is now locked.</span>}
+            {p.hasQuote && p.stale && <span>Quote <b>Rev {o.quote.rev}</b> · {fmtINR(o.quote.total)} · <Pill tone="stuck">Out of date</Pill></span>}
+            {p.hasQuote && !p.stale && p.rejected && <span>Quote <b>Rev {o.quote.rev}</b> · {fmtINR(o.quote.total)} · <Pill tone="stuck">Client rejected</Pill>{o.quote.rejectedReason ? <span className="text-muted-foreground"> — {o.quote.rejectedReason}</span> : null}</span>}
+            {p.hasQuote && !p.stale && p.quoteStatus === "sent" && <span>Quote <b>Rev {o.quote.rev}</b> · {fmtINR(o.quote.total)} · <Pill tone="active">Sent — awaiting client approval</Pill></span>}
+            {p.approved && <span>Quote <b>Rev {o.quote.rev}</b> · {fmtINR(o.quote.total)} · <Pill tone="done">Approved</Pill>{o.quote.clientRef ? <span className="text-muted-foreground"> · client ref {o.quote.clientRef}</span> : null} — costing is now locked.</span>}
           </div>
           <div className="flex items-center gap-2">
-            {(!p.hasQuote || p.stale) && <Button onClick={() => { saveQuote(o.id); logActivity("Planning", `Quote ${p.hasQuote ? "re-sent" : "sent"} — ${o.woNo} (${fmtINR(c.total)})`); toast("Quote sent for approval"); }}>{p.stale ? "Re-send quote" : "Send quote"} →</Button>}
-            {p.hasQuote && !p.approved && !p.stale && <Button onClick={() => { approveQuote(o.id); logActivity("Planning", `Quote approved — ${o.woNo}. Procurement open.`); toast("Quote approved — procurement unlocked"); window.openOrder(o.id, "procurement"); }}>✓ Mark approved</Button>}
+            {(!p.hasQuote || p.stale || p.rejected) && <Button onClick={() => { saveQuote(o.id); logActivity("Planning", `Quote ${p.hasQuote ? "re-sent" : "sent"} — ${o.woNo} (${fmtINR(c.total)})`); toast("Quote sent — awaiting client approval"); }}>{p.hasQuote ? "Revise & re-send" : "Send quote"} →</Button>}
+            {p.hasQuote && !p.approved && !p.stale && p.quoteStatus === "sent" && <Button onClick={() => setDecisionOpen(true)}>Record client decision →</Button>}
           </div>
         </div>
-        {p.approved && <p className="mt-3 text-[11px] text-muted-foreground">To change the price, revise the BOM (Rev {p.bomRev + 1}) — that re-opens costing and voids this approval.</p>}
+        {p.quoteStatus === "sent" && !p.stale && <p className="mt-3 text-[11px] text-muted-foreground">The quote is with the client. Procurement stays locked until you record their approval — with the client's reference and approval date.</p>}
+        {p.approved && <p className="mt-3 text-[11px] text-muted-foreground">Approved {o.quote.approvedAt ? fmtDate(o.quote.approvedAt) : ""}. To change the price, revise the BOM (Rev {p.bomRev + 1}) — that re-opens costing and voids this approval.</p>}
       </Card>
+
+      {decisionOpen && <RecordDecisionModal order={o} total={c.total} onClose={() => setDecisionOpen(false)} />}
     </div>
+  );
+}
+
+// ---------- Record the client's decision on a sent quote ----------
+function RecordDecisionModal({ order, total, onClose }) {
+  const { Modal, Field, Input, Textarea, Button, approveQuote, rejectQuote, logActivity, toast, fmtINR, isoToInputDate, toISODate } = window;
+  const [mode, setMode] = wsUseState("approve");           // 'approve' | 'reject'
+  const [clientRef, setClientRef] = wsUseState("");
+  const [approvedOn, setApprovedOn] = wsUseState(isoToInputDate(new Date().toISOString()));
+  const [reason, setReason] = wsUseState("");
+
+  function submit() {
+    if (mode === "approve") {
+      if (!clientRef.trim()) { toast("Enter the client's approval reference"); return; }
+      approveQuote(order.id, { clientRef: clientRef.trim(), approvedAt: toISODate(approvedOn) });
+      logActivity("Planning", `Quote approved by client — ${order.woNo} (ref ${clientRef.trim()}). Procurement open.`);
+      toast("Client approval recorded — procurement unlocked");
+      onClose();
+      window.openOrder(order.id, "procurement");
+    } else {
+      rejectQuote(order.id, { reason: reason.trim() });
+      logActivity("Planning", `Quote rejected by client — ${order.woNo}${reason.trim() ? " (" + reason.trim() + ")" : ""}`, "warn");
+      toast("Recorded — revise and re-send the quote");
+      onClose();
+    }
+  }
+
+  const Tab = ({ k, label }) => (
+    <button type="button" onClick={() => setMode(k)} className={`flex-1 rounded-md px-3 py-2 text-sm font-medium border transition-colors ${mode === k ? (k === "approve" ? "border-primary bg-primary-soft text-primary" : "border-[var(--status-stuck)] bg-[color-mix(in_oklab,var(--status-stuck)_8%,transparent)] text-[var(--status-stuck)]") : "border-border bg-white text-muted-foreground hover:text-foreground"}`}>{label}</button>
+  );
+
+  return (
+    <Modal open={true} onClose={onClose} title={`Record client decision — ${order.woNo}`} maxW="max-w-lg">
+      <p className="text-sm text-muted-foreground mb-4">Quote <b className="text-foreground">{fmtINR(total)}</b> was sent to <b className="text-foreground">{order.client}</b>. Record what the client came back with — this is the gate that opens (or holds) procurement.</p>
+      <div className="flex gap-2 mb-4">
+        <Tab k="approve" label="✓ Client approved" />
+        <Tab k="reject" label="✕ Client rejected" />
+      </div>
+      {mode === "approve" ? (
+        <div className="space-y-3">
+          <Field label="Client approval reference" hint="Their PO number or approval email — kept as evidence on the order.">
+            <Input value={clientRef} onChange={e => setClientRef(e.target.value)} placeholder="e.g. PO-CLIENT-4471 / email 14 Jun" />
+          </Field>
+          <Field label="Approval date">
+            <Input type="date" value={approvedOn} onChange={e => setApprovedOn(e.target.value)} />
+          </Field>
+        </div>
+      ) : (
+        <Field label="Reason (optional)" hint="What the client wants changed — shown on the order so it can be revised and re-sent.">
+          <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. margin too high; asked to re-quote at 12%" />
+        </Field>
+      )}
+      <div className="mt-6 flex justify-end gap-2">
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button variant={mode === "reject" ? "danger" : "primary"} onClick={submit}>{mode === "approve" ? "Record approval" : "Record rejection"}</Button>
+      </div>
+    </Modal>
   );
 }
 
@@ -498,6 +564,9 @@ function ProcurementTab({ order, p }) {
   const shortages = rows.filter(r => r.toOrder > 0);
   const pos = getState().pos.filter(p2 => p2.woNo === o.woNo);
   const jobRfqs = rfqs.filter(r => r.woNo === o.woNo);
+  // Mutual exclusion: once quotes are out for this job, the direct-PO path is
+  // suppressed so you can't double-order. Awarding a bid raises the PO instead.
+  const hasOpenRfq = jobRfqs.some(r => r.status !== "Awarded");
 
   function raisePo() {
     if (!shortages.length) { toast("Nothing to order"); return; }
@@ -517,7 +586,13 @@ function ProcurementTab({ order, p }) {
     <div className="space-y-6">
       {/* Decision banner — RFQ is the exception, not the gate */}
       {shortages.length > 0 && (
-        dec.recommendRfq ? (
+        hasOpenRfq ? (
+          <div className="rounded-lg border border-primary/30 bg-primary-soft p-4">
+            <div className="flex items-center gap-2"><Pill tone="active">Quotes out for this job</Pill></div>
+            <div className="mt-1.5 text-sm text-foreground">Bids are being collected — award one in <b>Sourcing</b> (or the table below) and the PO is raised automatically.</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">Raising a separate direct PO is disabled while an RFQ is open, to avoid double-ordering.</div>
+          </div>
+        ) : dec.recommendRfq ? (
           <div className="rounded-lg border border-[color-mix(in_oklab,var(--amber)_45%,transparent)] bg-[color-mix(in_oklab,var(--amber)_8%,transparent)] p-4">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div className="min-w-0">
@@ -621,9 +696,9 @@ function ProcurementTab({ order, p }) {
   );
 }
 
-// ---------- Build & delivery (read-only downstream — owned by Inventory & Quality) ----------
+// ---------- Build & recovery (build floor → final QC → dispatch, with rework loop) ----------
 function DeliveryTab({ order, p }) {
-  const { useStore, getState, buildMinutes, Card, Pill, Empty, fmtDate, fmtDateTime, fmtNum, STAGES } = window;
+  const { useStore, getState, buildMinutes, setStoreState, logActivity, toast, Card, Pill, Button, Empty, fmtDate, fmtDateTime, fmtNum, STAGES } = window;
   useStore(s => s.issues); useStore(s => s.finalQcJobs); useStore(s => s.qcRecords); useStore(s => s.orders);
   const o = order;
   const s = getState();
@@ -631,11 +706,17 @@ function DeliveryTab({ order, p }) {
 
   if (si < STAGES.indexOf("Build")) {
     return (
-      <Card title="Build & delivery">
+      <Card title="Build & recovery">
         <Empty title="🔒 Not on the floor yet" hint="This opens once the job is released to build. Material must be covered and the job released from the Release board first." action={<button onClick={() => window.openOrder(o.id, "procurement")} className="text-sm font-medium text-primary">Go to Procurement</button>} />
       </Card>
     );
   }
+
+  const markBuildComplete = () => {
+    setStoreState(st => { const ord = st.orders.find(x => x.woNo === o.woNo); if (ord) { ord.stage = "Final QC"; ord.rework = null; ord.stuck = null; } return st; });
+    logActivity("Planning", `Build complete — ${o.woNo} sent to Final QC`);
+    toast("Build marked complete — now in Final QC");
+  };
 
   const issues = s.issues.filter(i => i.woNo === o.woNo);
   const qcJob = s.finalQcJobs.find(j => j.woNo === o.woNo);
@@ -664,15 +745,21 @@ function DeliveryTab({ order, p }) {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">Read-only floor view.</span> Build runs at the bench, final QC &amp; dispatch are run by Quality — Planning follows it here. Actions live in those modules.
-      </div>
+      {o.rework ? (
+        <div className="rounded-lg border border-[color-mix(in_oklab,var(--status-stuck)_40%,transparent)] bg-[color-mix(in_oklab,var(--status-stuck)_7%,transparent)] px-4 py-3 text-sm text-[var(--status-stuck)]">
+          <span className="font-semibold">⟲ In recovery — back on the floor for rework.</span> {o.rework.reason} · since {fmtDate(o.rework.since)}. Fix it, then mark the build complete to re-enter Final QC. The failed report is below.
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          Build runs at the bench; final QC &amp; dispatch are run by Quality. Mark the build complete here when the floor finishes — that's what sends the job to the Final QC gate.
+        </div>
+      )}
 
       <Card title="Build → Final QC → Dispatch">
         <div className="space-y-7 before:absolute relative">
           <div className="absolute left-[9px] top-3 bottom-3 w-px bg-border" />
 
-          <Phase stage="Build" title="Build" status={phaseStatus("Build")}>
+          <Phase stage="Build" title={o.rework ? "Build — rework" : "Build"} status={phaseStatus("Build")}>
             <div className="text-[11px] text-muted-foreground num mb-2">≈ {buildHrs.toFixed(1)} h estimated · {o.qty} unit{o.qty > 1 ? "s" : ""}</div>
             {issues.length === 0 ? (
               <p className="text-xs text-muted-foreground">No material issued to this job yet.</p>
@@ -686,6 +773,12 @@ function DeliveryTab({ order, p }) {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {o.stage === "Build" && (
+              <div className="mt-3 flex items-center gap-3">
+                <Button onClick={markBuildComplete}>{o.rework ? "Rework done — back to Final QC →" : "Mark build complete → Final QC"}</Button>
+                <span className="text-[11px] text-muted-foreground">Sends the finished job to the Final QC gate.</span>
               </div>
             )}
           </Phase>

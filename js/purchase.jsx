@@ -31,62 +31,226 @@ function RiskPill_pu({ risk }) {
   return <Pill tone={tone}>{label}</Pill>;
 }
 
+// The desk follows the buyer's actual lifecycle, left to right:
+//   Today (what needs me now) → To buy (demand) → Sourcing (RFQ) → Orders (track) → Bills (pay) → Suppliers
+// One landing answers "what do I do today"; one shared RaisePOModal is the single
+// way to cut a PO, whether it's a stock top-up or a job shortfall.
 function Purchase({ readOnly = false }) {
-  const { useStore, getState, openOrder, replenishmentPlan, projectBuys, openPoBoard, raiseStockPo, setPoConfirmed, Card, Pill, Button, Select, Table, Empty, fmtINR, fmtNum, fmtDate } = window;
+  const { useStore, getState, openOrder, replenishmentPlan, projectBuys, openPoBoard, setPoConfirmed, invoiceMatch, materialMeta } = window;
   useStore(s => s.orders); useStore(s => s.pos); useStore(s => s.stock); useStore(s => s.inwards); useStore(s => s.supplierRfqs); useStore(s => s.invoices);
   const s = getState();
-  const [view, setView] = puUseState("plan");
+  const [view, setView] = puUseState("today");
   const [compareId, setCompareId] = puUseState(null);
+  const [poModal, setPoModal] = puUseState(null);   // { title, woNo, supplier, items }
+  const [rfqFor, setRfqFor] = puUseState(null);      // { orderId } | null
 
   const repl = replenishmentPlan(s);
   const below = repl.filter(r => r.below && r.suggestQty > 0);
   const buys = projectBuys(s);
   const board = openPoBoard(s);
   const overdue = board.filter(b => b.overdue || b.lateForJob);
+  const rfqsAwaiting = s.supplierRfqs.filter(r => r.status !== "Awarded" && r.bids.some(b => b.submitted));
+  const invList = (s.invoices || []).map(inv => ({ inv, m: invoiceMatch(inv, s) }));
+  const invAlerts = invList.filter(x => (!x.m.matched || x.m.msmeRisk === "overdue" || x.m.msmeRisk === "due-soon") && x.inv.payStatus !== "Paid");
   const projectVal = buys.reduce((a, b) => a + b.value, 0);
   const replVal = below.reduce((a, r) => a + r.value, 0);
-  const { invoiceMatch } = window;
-  const invList = (s.invoices || []).map(inv => ({ inv, m: invoiceMatch(inv, s) }));
-  const invAlerts = invList.filter(x => (!x.m.matched || x.m.msmeRisk === "overdue" || x.m.msmeRisk === "due-soon") && x.inv.payStatus !== "Paid").length;
+  const actionCount = below.length + buys.length + rfqsAwaiting.length + overdue.length + invAlerts.length;
+
+  // helper passed down so any view can open the one PO modal with prefilled lines
+  const raiseFor = (cfg) => setPoModal(cfg);
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Procurement desk</h1>
-          <p className="text-sm text-muted-foreground max-w-2xl">The buyer's cross-job view. Replenish stock consumables to their reorder level, buy made-to-order items against the job that needs them, and chase open POs to receipt. <b className="text-foreground">Per-job buying still lives in the order workspace</b> — this is everything that spans jobs.</p>
+          <p className="text-sm text-muted-foreground max-w-2xl">One buyer's cockpit across every job. The lifecycle, left to right — see <b className="text-foreground">what to buy</b>, <b className="text-foreground">source</b> it, track the <b className="text-foreground">orders</b>, then clear the <b className="text-foreground">bills</b>.</p>
         </div>
         <Seg_pu value={view} onChange={setView} options={[
-          { key: "plan", label: "Buy plan", badge: below.length + buys.length },
-          { key: "expedite", label: "Expediting", badge: overdue.length },
-          { key: "quotes", label: "Quotes" },
-          { key: "invoices", label: "Invoices", badge: invAlerts },
-          { key: "register", label: "PO register" },
+          { key: "today", label: "Today", badge: actionCount },
+          { key: "buy", label: "To buy", badge: below.length + buys.length },
+          { key: "sourcing", label: "Sourcing", badge: rfqsAwaiting.length },
+          { key: "orders", label: "Orders", badge: overdue.length },
+          { key: "bills", label: "Bills", badge: invAlerts.length },
           { key: "suppliers", label: "Suppliers" },
         ]} />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Kpi_pu label="Below reorder" value={below.length} tone={below.length ? "warn" : "good"} hint={below.length ? `${fmtINR(replVal)} to replenish` : "Stock healthy"} />
-        <Kpi_pu label="Project buys" value={buys.length} tone={buys.length ? "warn" : "good"} hint={buys.length ? `${fmtINR(projectVal)} buy-to-order` : "None outstanding"} />
-        <Kpi_pu label="Open POs" value={board.length} hint={`${fmtINR(board.reduce((a, b) => a + b.value, 0))} in transit`} />
-        <Kpi_pu label="Overdue / at-risk" value={overdue.length} tone={overdue.length ? "bad" : "good"} hint={overdue.length ? "Needs expediting" : "All on track"} />
-      </div>
-
-      {view === "plan" && <BuyPlan_pu s={s} below={below} repl={repl} buys={buys} readOnly={readOnly} openOrder={openOrder} raiseStockPo={raiseStockPo} />}
-      {view === "expedite" && <Expediting_pu board={board} readOnly={readOnly} openOrder={openOrder} setPoConfirmed={setPoConfirmed} orders={s.orders} />}
-      {view === "quotes" && <Quotes_pu rfqs={s.supplierRfqs} onCompare={setCompareId} />}
-      {view === "invoices" && <Invoices_pu s={s} readOnly={readOnly} />}
-      {view === "register" && <Register_pu s={s} openOrder={openOrder} />}
+      {view === "today" && <TodayBoard_pu s={s} below={below} buys={buys} board={board} overdue={overdue} rfqsAwaiting={rfqsAwaiting} invAlerts={invAlerts} replVal={replVal} projectVal={projectVal} readOnly={readOnly} setView={setView} openOrder={openOrder} raiseFor={raiseFor} setCompareId={setCompareId} setRfqFor={setRfqFor} setPoConfirmed={setPoConfirmed} />}
+      {view === "buy" && <ToBuy_pu s={s} below={below} repl={repl} buys={buys} readOnly={readOnly} openOrder={openOrder} raiseFor={raiseFor} setRfqFor={setRfqFor} />}
+      {view === "sourcing" && <Sourcing_pu rfqs={s.supplierRfqs} onCompare={setCompareId} onFloat={() => setRfqFor({ orderId: null })} readOnly={readOnly} />}
+      {view === "orders" && <Orders_pu s={s} board={board} readOnly={readOnly} openOrder={openOrder} setPoConfirmed={setPoConfirmed} />}
+      {view === "bills" && <Invoices_pu s={s} readOnly={readOnly} />}
       {view === "suppliers" && <Suppliers_pu s={s} />}
 
       {compareId && <CompareModal rfqId={compareId} onClose={() => setCompareId(null)} readOnly={readOnly} />}
+      {rfqFor && <NewRFQModal orderId={rfqFor.orderId} onClose={() => setRfqFor(null)} />}
+      {poModal && <RaisePOModal {...poModal} onClose={() => setPoModal(null)} />}
+    </div>
+  );
+}
+
+// ---------- Today: the buyer's prioritized action queue ----------
+function TodayBoard_pu({ s, below, buys, board, overdue, rfqsAwaiting, invAlerts, replVal, projectVal, readOnly, setView, openOrder, raiseFor, setCompareId, setRfqFor, setPoConfirmed }) {
+  const { Card, Pill, Button, Empty, fmtINR, fmtNum, fmtDate, materialMeta } = window;
+
+  // group replenishment by supplier (one PO per supplier)
+  const bySup = {};
+  below.forEach(r => { (bySup[r.supplier] = bySup[r.supplier] || []).push(r); });
+  const replGroups = Object.entries(bySup).map(([supplier, items]) => ({ supplier, items, value: items.reduce((a, r) => a + r.value, 0) }));
+
+  const Row = ({ tone, tag, title, detail, action }) => (
+    <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-white px-4 py-3">
+      <div className="min-w-0 flex items-start gap-3">
+        <Pill tone={tone}>{tag}</Pill>
+        <div className="min-w-0">
+          <div className="text-sm font-medium truncate">{title}</div>
+          <div className="text-[11px] text-muted-foreground truncate">{detail}</div>
+        </div>
+      </div>
+      {action && <div className="shrink-0">{action}</div>}
+    </div>
+  );
+
+  const empty = below.length + buys.length + rfqsAwaiting.length + overdue.length + invAlerts.length === 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Kpi_pu label="Below reorder" value={below.length} tone={below.length ? "warn" : "good"} hint={below.length ? `${fmtINR(replVal)} to top up` : "Stock healthy"} />
+        <Kpi_pu label="Job shortfalls" value={buys.length} tone={buys.length ? "warn" : "good"} hint={buys.length ? `${fmtINR(projectVal)} to buy` : "All covered"} />
+        <Kpi_pu label="Bids to award" value={rfqsAwaiting.length} tone={rfqsAwaiting.length ? "warn" : "good"} hint={rfqsAwaiting.length ? "Quotes in" : "None waiting"} />
+        <Kpi_pu label="POs overdue" value={overdue.length} tone={overdue.length ? "bad" : "good"} hint={overdue.length ? "Chase suppliers" : "On track"} />
+        <Kpi_pu label="Invoice alerts" value={invAlerts.length} tone={invAlerts.length ? "bad" : "good"} hint={invAlerts.length ? "Match / MSME" : "Clear"} />
+      </div>
+
+      <Card title="Action queue" action={<span className="text-xs text-muted-foreground">Highest-leverage first</span>}>
+        {empty ? <Empty title="Nothing needs you right now" hint="No shortfalls, overdue POs, bids to award or invoice exceptions. Nice." /> : (
+          <div className="space-y-2.5">
+            {/* 1. Job shortfalls — buying for a live job is the priority */}
+            {buys.map(b => (
+              <Row key={`buy-${b.order.id}`} tone="stuck" tag="Job short"
+                title={`${b.order.woNo} · ${b.order.client}`}
+                detail={`${b.rows.length} item${b.rows.length > 1 ? "s" : ""} short · ${fmtINR(b.value)} · due ${fmtDate(b.order.dueDate)}`}
+                action={readOnly ? null : b.dec.recommendRfq
+                  ? <Button variant="secondary" onClick={() => setRfqFor({ orderId: b.order.id })}>Float RFQ →</Button>
+                  : <Button onClick={() => raiseFor({ title: `Raise PO — ${b.order.woNo}`, woNo: b.order.woNo, supplier: b.dec.preferred, items: b.rows.map(r => ({ description: r.description, qty: r.toOrder, unit: r.unit, rate: window.rateOf(r.description) })) })}>Raise PO →</Button>} />
+            ))}
+            {/* 2. RFQs with bids in, awaiting award */}
+            {rfqsAwaiting.map(r => (
+              <Row key={`rfq-${r.id}`} tone="amber" tag="Award"
+                title={`${r.rfqNo} · ${r.woNo}`}
+                detail={`${r.bids.filter(b => b.submitted).length}/${r.bids.length} bids in — compare and award to raise the PO`}
+                action={<Button variant="secondary" onClick={() => setCompareId(r.id)}>Compare & award →</Button>} />
+            ))}
+            {/* 3. Overdue / at-risk POs */}
+            {overdue.map(b => (
+              <Row key={`po-${b.po.id}`} tone="stuck" tag={b.overdue ? "Overdue" : "At risk"}
+                title={`${b.po.poNo} · ${b.supplier}`}
+                detail={`${b.isStock ? "Stock top-up" : b.woNo} · ${b.overdue ? `${Math.abs(b.daysToEta)}d late` : `ETA ${fmtDate(b.eta)}`}${b.confirmed ? " · confirmed" : ""}`}
+                action={readOnly ? null : b.confirmed ? <Button variant="ghost" onClick={() => setView("orders")}>Expedite →</Button> : <Button variant="secondary" onClick={() => setPoConfirmed(b.po.id, true)}>Mark confirmed</Button>} />
+            ))}
+            {/* 4. Replenishment groups */}
+            {replGroups.map(g => (
+              <Row key={`repl-${g.supplier}`} tone="amber" tag="Replenish"
+                title={`${g.supplier} · ${g.items.length} item${g.items.length > 1 ? "s" : ""}`}
+                detail={`Stock below reorder · ${fmtINR(g.value)}`}
+                action={readOnly ? null : <Button variant="secondary" onClick={() => raiseFor({ title: `Replenishment PO — ${g.supplier}`, woNo: "STOCK", supplier: g.supplier, items: g.items.map(r => ({ description: r.description, qty: r.suggestQty, unit: r.unit, rate: r.rate })) })}>Raise PO →</Button>} />
+            ))}
+            {/* 5. Invoice exceptions / MSME */}
+            {invAlerts.map(({ inv, m }) => (
+              <Row key={`inv-${inv.id}`} tone={m.msmeRisk === "overdue" ? "stuck" : "amber"} tag={m.isDuplicate ? "Duplicate" : !m.matched ? "Mismatch" : "MSME due"}
+                title={`${inv.invNo} · ${inv.supplier}`}
+                detail={m.isDuplicate ? "Possible duplicate invoice" : !m.matched ? `${m.issues.length} match exception${m.issues.length > 1 ? "s" : ""}` : `MSME clock — ${m.daysLeft}d left`}
+                action={<Button variant="ghost" onClick={() => setView("bills")}>Review →</Button>} />
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ---------- The ONE way to raise a PO — stock top-up or a job shortfall ----------
+function RaisePOModal({ title, woNo, supplier: initSupplier, items: initItems, onClose }) {
+  const { useStore, Modal, Field, Input, Select, Button, setStoreState, logActivity, uid, nowISO, addDaysISO, toast, fmtINR, fmtNum, isoToInputDate, toISODate, materialMeta } = window;
+  const suppliers = useStore(s => s.suppliers);
+  const [supplier, setSupplier] = puUseState(initSupplier || suppliers[0]);
+  const [items, setItems] = puUseState((initItems && initItems.length ? initItems : []).map(i => ({ description: i.description, qty: i.qty, unit: i.unit, rate: i.rate || 0 })));
+  const [eta, setEta] = puUseState(isoToInputDate(addDaysISO(nowISO(), 7)));
+  const isStock = !woNo || woNo === "STOCK";
+  const total = items.reduce((a, it) => a + (Number(it.qty) || 0) * (Number(it.rate) || 0), 0);
+  const upd = (i, patch) => { const n = items.map(x => ({ ...x })); n[i] = { ...n[i], ...patch }; setItems(n); };
+  const del = (i) => setItems(items.filter((_, x) => x !== i));
+
+  function raise() {
+    if (!items.length) { toast("Add at least one line"); return; }
+    const poNo = "PO-" + (2400 + Math.floor(Math.random() * 600));
+    setStoreState(st => {
+      st.pos.unshift({ id: uid(), poNo, supplier, woNo: isStock ? "STOCK" : woNo, kind: isStock ? "Replenishment" : "Job", status: "Ordered", createdAt: nowISO(), etaDate: toISODate(eta), confirmed: false,
+        items: items.map(i => ({ description: i.description, qty: Number(i.qty) || 0, unit: i.unit, rate: Number(i.rate) || 0 })) });
+      if (!isStock) { const o = st.orders.find(x => x.woNo === woNo); if (o && o.stage === "Approved") o.stage = "PO"; }
+      return st;
+    });
+    logActivity("Planning", `${poNo} raised to ${supplier} — ${isStock ? "stock replenishment" : woNo} (${items.length} item${items.length > 1 ? "s" : ""})`);
+    toast("PO raised");
+    onClose();
+  }
+
+  return (
+    <Modal open={true} onClose={onClose} title={title || "Raise purchase order"} maxW="max-w-3xl">
+      <div className="grid sm:grid-cols-3 gap-3">
+        <Field label="Supplier"><Select value={supplier} onChange={e => setSupplier(e.target.value)}>{suppliers.map(x => <option key={x}>{x}</option>)}</Select></Field>
+        <Field label="For"><Input value={isStock ? "Stock top-up" : woNo} disabled /></Field>
+        <Field label="Expected (ETA)"><Input type="date" value={eta} onChange={e => setEta(e.target.value)} /></Field>
+      </div>
+      <div className="mt-4 flex items-center justify-between"><div className="text-sm font-medium">Lines</div><Button variant="secondary" onClick={() => setItems([...items, { description: "", qty: 1, unit: "nos", rate: 0 }])}>+ Add line</Button></div>
+      <div className="mt-2 space-y-2">
+        {items.length === 0 ? <p className="text-xs text-muted-foreground">No lines yet — add one.</p> : items.map((it, i) => (
+          <div key={i} className="grid grid-cols-12 gap-2 items-end">
+            <div className="col-span-5"><Field label="Description"><Input value={it.description} onChange={e => upd(i, { description: e.target.value })} /></Field></div>
+            <div className="col-span-2"><Field label="Qty"><Input type="number" value={it.qty} onChange={e => upd(i, { qty: Number(e.target.value) })} /></Field></div>
+            <div className="col-span-2"><Field label="Unit"><Select value={it.unit} onChange={e => upd(i, { unit: e.target.value })}><option value="m">m</option><option value="nos">nos</option></Select></Field></div>
+            <div className="col-span-2"><Field label="Rate ₹"><Input type="number" value={it.rate} onChange={e => upd(i, { rate: Number(e.target.value) })} /></Field></div>
+            <div className="col-span-1 pb-2 text-right"><button onClick={() => del(i)} className="text-xs text-[var(--status-stuck)]">✕</button></div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
+        <span className="text-sm text-muted-foreground">PO value</span>
+        <span className="num text-lg font-display text-primary">{fmtINR(total)}</span>
+      </div>
+      <div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={raise}>Raise PO</Button></div>
+      <p className="mt-3 text-[11px] text-muted-foreground">Receipt is automatic — this PO updates to Partial / Received as Inventory logs goods inward against it in Stores.</p>
+    </Modal>
+  );
+}
+
+// ---------- Sourcing: float + compare/award RFQs ----------
+function Sourcing_pu({ rfqs, onCompare, onFloat, readOnly }) {
+  const { Button } = window;
+  return (
+    <div className="space-y-3">
+      {!readOnly && <div className="flex justify-end"><Button onClick={onFloat}>Float new RFQ →</Button></div>}
+      <Quotes_pu rfqs={rfqs} onCompare={onCompare} />
+    </div>
+  );
+}
+
+// ---------- Orders: expedite open POs + full register, in one place ----------
+function Orders_pu({ s, board, readOnly, openOrder, setPoConfirmed }) {
+  return (
+    <div className="space-y-6">
+      <Expediting_pu board={board} readOnly={readOnly} openOrder={openOrder} setPoConfirmed={setPoConfirmed} orders={s.orders} />
+      <Register_pu s={s} openOrder={openOrder} />
     </div>
   );
 }
 
 // ---------- Buy plan: replenishment (stock) + project buys (per job) ----------
-function BuyPlan_pu({ s, below, repl, buys, readOnly, openOrder, raiseStockPo }) {
+// To buy — unified demand: stock replenishment AND job shortfalls, each row
+// raising a PO (or floating an RFQ) through the single shared modal.
+function ToBuy_pu({ s, below, repl, buys, readOnly, openOrder, raiseFor, setRfqFor }) {
   const { Card, Pill, Button, Table, Empty, fmtINR, fmtNum } = window;
   const healthy = repl.filter(r => !r.below);
   const bySupplier = {};
@@ -94,7 +258,35 @@ function BuyPlan_pu({ s, below, repl, buys, readOnly, openOrder, raiseStockPo })
 
   return (
     <div className="space-y-6">
-      {/* Replenishment */}
+      {/* Job shortfalls first — buying for a live job is the priority */}
+      <Card title="Job shortfalls — material a live job is missing" action={<span className="text-xs text-muted-foreground">{buys.length} job{buys.length !== 1 ? "s" : ""} short</span>}>
+        {buys.length === 0 ? <Empty title="No job shortfalls" hint="Every approved job is covered by stock or open POs." /> : (
+          <div className="space-y-3">
+            {buys.map(({ order, rows, dec, value }) => (
+              <div key={order.id} className="rounded-lg border border-border p-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="font-mono text-sm num">{order.woNo} <span className="font-sans text-muted-foreground">· {order.client} · {order.config} · Qty {order.qty}</span></div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{dec.reason}</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {dec.recommendRfq ? <Pill tone="amber">Quote · {fmtINR(value)}</Pill> : <Pill tone="active">Direct PO · {dec.preferred}</Pill>}
+                    {!readOnly && (dec.recommendRfq
+                      ? <Button variant="secondary" onClick={() => setRfqFor({ orderId: order.id })}>Float RFQ →</Button>
+                      : <Button onClick={() => raiseFor({ title: `Raise PO — ${order.woNo}`, woNo: order.woNo, supplier: dec.preferred, items: rows.map(r => ({ description: r.description, qty: r.toOrder, unit: r.unit, rate: window.rateOf(r.description) })) })}>Raise PO →</Button>)}
+                    <button onClick={() => openOrder(order.id, "procurement")} className="text-xs font-medium text-primary whitespace-nowrap hover:underline">Open job →</button>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {rows.map(r => <span key={r.description} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs num">{r.description} <b className="text-[var(--amber)]">{fmtNum(r.toOrder)} {r.unit}</b></span>)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Stock replenishment — to a min/max, one PO per supplier */}
       <Card title="Replenishment — stock below reorder level" action={<span className="text-xs text-muted-foreground">{healthy.length} of {repl.length} items healthy</span>}>
         {below.length === 0 ? <Empty title="All stock above reorder level" hint="No consumable needs topping up right now." /> : (
           <div className="space-y-4">
@@ -107,7 +299,7 @@ function BuyPlan_pu({ s, below, repl, buys, readOnly, openOrder, raiseStockPo })
                     <div className="text-sm font-medium">{supplier} <span className="text-muted-foreground font-normal">· {items.length} item{items.length > 1 ? "s" : ""}</span></div>
                     <div className="flex items-center gap-3">
                       <span className="num text-sm font-medium">{fmtINR(total)}</span>
-                      {!readOnly && <Button onClick={() => raiseStockPo(supplier, items.map(r => ({ description: r.description, qty: r.suggestQty, unit: r.unit, rate: r.rate })))}>Raise replenishment PO</Button>}
+                      {!readOnly && <Button onClick={() => raiseFor({ title: `Replenishment PO — ${supplier}`, woNo: "STOCK", supplier, items: items.map(r => ({ description: r.description, qty: r.suggestQty, unit: r.unit, rate: r.rate })) })}>Raise PO →</Button>}
                     </div>
                   </div>
                   <Table headers={["Material", "On hand", "Committed", "On order", "Projected", "Reorder pt", "Suggested buy", "Value"]}>
@@ -127,31 +319,6 @@ function BuyPlan_pu({ s, below, repl, buys, readOnly, openOrder, raiseStockPo })
                 </div>
               );
             })}
-          </div>
-        )}
-      </Card>
-
-      {/* Project buys */}
-      <Card title="Project buys — made-to-order items by job" action={<span className="text-xs text-muted-foreground">Non-stocked items · open the job to buy</span>}>
-        {buys.length === 0 ? <Empty title="No project buys outstanding" hint="No live job needs a non-stocked / made-to-order item." /> : (
-          <div className="space-y-3">
-            {buys.map(({ order, rows, dec, value }) => (
-              <button key={order.id} onClick={() => openOrder(order.id, "procurement")} className="w-full text-left rounded-lg border border-border p-4 hover:border-primary hover:bg-muted/30 transition-colors">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="min-w-0">
-                    <div className="font-mono text-sm num">{order.woNo} <span className="font-sans text-muted-foreground">· {order.client} · {order.config} · Qty {order.qty}</span></div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">{dec.reason}</div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {dec.recommendRfq ? <Pill tone="amber">Get quotes · {fmtINR(value)}</Pill> : <Pill tone="active">Direct PO · {dec.preferred}</Pill>}
-                    <span className="text-xs font-medium text-primary whitespace-nowrap">Open procurement →</span>
-                  </div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {rows.map(r => <span key={r.description} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs num">{r.description} <b className="text-[var(--amber)]">{fmtNum(r.toOrder)} {r.unit}</b></span>)}
-                </div>
-              </button>
-            ))}
           </div>
         )}
       </Card>

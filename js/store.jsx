@@ -476,6 +476,13 @@ function seed() {
         { parameter: "Visual / dress", spec: "Clean", method: "Visual", frequency: "100%", observation: "Pass" },
         { parameter: "Label / marking", spec: "Per drawing", method: "Visual", frequency: "100%", observation: "Pass" },
       ], disposition: "Pass" },
+    { id: uid(), kind: "Final", refId: "RS-WO-24-0014", refLabel: "Final assembly · RS-WO-24-0014", checkedBy: "Meera Joshi", date: days(-1),
+      rows: [
+        { parameter: "Continuity — all feeders", spec: "0 Ω end-to-end", method: "Continuity tester", frequency: "100%", observation: "FAIL — feeder 2 open" },
+        { parameter: "Connector seating", spec: "Audible click, no play", method: "Tactile + visual", frequency: "100%", observation: "OK" },
+        { parameter: "Visual / dress", spec: "No nicks, sleeves square", method: "Visual", frequency: "100%", observation: "OK" },
+        { parameter: "Label / marking", spec: "Per drawing", method: "Visual", frequency: "100%", observation: "OK" },
+      ], disposition: "Hold" },
   ];
 
   const activity = [
@@ -685,11 +692,34 @@ function saveQuote(orderId) {
     return s;
   });
 }
-// Client approves the quote — the gate that opens procurement
-function approveQuote(orderId) {
+// Client approves the quote — the gate that opens procurement.
+// Approval is a deliberate, evidenced step: capture the client's approval
+// reference (their PO / email) and the date they approved on.
+function approveQuote(orderId, evidence = {}) {
   setStoreState(s => {
     const o = s.orders.find(x => x.id === orderId);
-    if (o && o.quote) { o.quote.status = "approved"; o.quote.approvedAt = nowISO(); if (["Costing", "Quote"].includes(o.stage)) o.stage = "Approved"; }
+    if (o && o.quote) {
+      o.quote.status = "approved";
+      o.quote.approvedAt = evidence.approvedAt || nowISO();
+      o.quote.clientRef = evidence.clientRef || o.quote.clientRef;
+      o.quote.rejectedReason = undefined;
+      o.quote.rejectedAt = undefined;
+      if (["Costing", "Quote"].includes(o.stage)) o.stage = "Approved";
+    }
+    return s;
+  });
+}
+// Client rejected the quote — it stays at Quote so it can be revised and re-sent.
+function rejectQuote(orderId, info = {}) {
+  setStoreState(s => {
+    const o = s.orders.find(x => x.id === orderId);
+    if (o && o.quote) {
+      o.quote.status = "rejected";
+      o.quote.rejectedReason = info.reason || "";
+      o.quote.rejectedAt = nowISO();
+      o.quote.approvedAt = undefined;
+      if (o.stage === "Approved") o.stage = "Quote";
+    }
     return s;
   });
 }
@@ -732,6 +762,6 @@ Object.assign(window, {
   openOrder, closeOrder, useOpenOrder,
   logActivity, advanceOrder, addToStock, addOrderDoc, removeOrderDoc,
   regenerateHarness, updateOrderCosting, saveQuote, recomputePoStatus,
-  lockBom, reviseBom, approveQuote, quoteStale,
+  lockBom, reviseBom, approveQuote, rejectQuote, quoteStale,
   fmtINR, fmtINR2, fmtNum, fmtDate, fmtDateTime, todayISO, toISODate, isoToInputDate,
 });
