@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ready Systems — Operations Console · Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:oklch(0.985 0.005 90); --paper-2:oklch(0.955 0.005 90);
+    --ink:oklch(0.20 0.012 250); --ink-2:oklch(0.27 0.014 250);
+    --primary:oklch(0.46 0.07 175); --primary-soft:oklch(0.94 0.025 175);
+    --muted:oklch(0.48 0.015 250); --border:oklch(0.90 0.008 180);
+    --panel:#fff; --amber:oklch(0.66 0.16 60);
+    --done:oklch(0.58 0.13 155); --active:oklch(0.55 0.13 230); --stuck:oklch(0.58 0.20 25);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  deck-stage:not(:defined){visibility:hidden}
+  body{font-family:Inter,system-ui,sans-serif;background:#0a0c0e;color:var(--ink)}
+
+  /* ---- slide canvas ---- */
+  section{
+    font-size:26px;line-height:1.5;
+    background:var(--paper);color:var(--ink);
+    --pad:104px;
+    overflow:hidden;
+  }
+  .slide{position:absolute;inset:0;padding:var(--pad);display:flex;flex-direction:column}
+  h1,h2,h3,h4{font-family:Fraunces,Georgia,serif;letter-spacing:-0.015em;line-height:1.08;font-weight:600}
+  .num{font-variant-numeric:tabular-nums}
+  .mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+
+  .kicker{font-size:18px;letter-spacing:.22em;text-transform:uppercase;color:var(--primary);font-weight:600;display:flex;align-items:center;gap:14px}
+  .kicker::before{content:"";width:42px;height:2px;background:var(--primary);display:inline-block}
+  .dek{color:var(--muted);font-size:30px;line-height:1.4;max-width:34ch;font-weight:400}
+  .eyebrow-num{font-family:Fraunces,serif;font-variant-numeric:tabular-nums}
+
+  /* ---- footer / page chrome ---- */
+  .foot{position:absolute;left:var(--pad);right:var(--pad);bottom:52px;display:flex;justify-content:space-between;align-items:center;font-size:16px;color:var(--muted);letter-spacing:.04em}
+  .foot .brand{display:flex;align-items:center;gap:10px;font-weight:500;color:var(--ink-2)}
+  .foot .dot{width:18px;height:18px;border-radius:5px;background:var(--primary);display:inline-grid;place-items:center;color:#fff;font-family:Fraunces,serif;font-size:11px;font-weight:700}
+
+  /* ---- cover & section dividers (ink) ---- */
+  .ink{background:var(--ink);color:var(--paper)}
+  .ink .dek{color:rgba(244,243,236,.74)}
+  .ink .foot{color:rgba(244,243,236,.5)}
+  .ink .foot .brand{color:rgba(244,243,236,.82)}
+  .grid-bg{position:absolute;inset:0;opacity:.05;background-image:linear-gradient(var(--paper) 1px,transparent 1px),linear-gradient(90deg,var(--paper) 1px,transparent 1px);background-size:60px 60px}
+
+  .brandrow{display:flex;align-items:center;gap:18px}
+  .brandrow .logo{width:64px;height:64px;border-radius:14px;background:var(--primary);display:grid;place-items:center;font-family:Fraunces,serif;font-weight:700;font-size:32px;color:#fff}
+  .brandrow .nm{font-family:Fraunces,serif;font-size:27px;font-weight:600}
+  .brandrow .sub{font-size:15px;letter-spacing:.24em;text-transform:uppercase;color:rgba(244,243,236,.5);margin-top:2px}
+
+  .cover-h{font-size:84px;line-height:1.02;font-weight:600;max-width:19ch;margin-top:auto}
+  .cover-lede{margin-top:30px;font-size:30px;line-height:1.42;max-width:50ch;color:rgba(244,243,236,.78)}
+  .cover-meta{margin-top:56px;display:flex;gap:64px;flex-wrap:wrap}
+  .cover-meta .b{font-family:Fraunces,serif;font-size:52px;font-weight:600;color:var(--paper);line-height:1}
+  .cover-meta .l{font-size:24px;color:rgba(244,243,236,.62);margin-top:8px;letter-spacing:.02em}
+
+  .divider-num{font-family:Fraunces,serif;font-size:30px;color:var(--primary);font-weight:600;letter-spacing:.04em}
+  .divider-h{font-size:76px;font-weight:600;max-width:20ch;margin-top:20px}
+  .divider-dek{margin-top:26px;font-size:30px;line-height:1.42;max-width:54ch;color:rgba(244,243,236,.74)}
+
+  /* ---- content building blocks ---- */
+  .head{margin-bottom:54px}
+  .head h2{font-size:58px;margin-top:16px}
+  .body{flex:1;min-height:0}
+
+  .cards{display:grid;gap:26px}
+  .cols-2{grid-template-columns:1fr 1fr}
+  .cols-3{grid-template-columns:repeat(3,1fr)}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:36px 38px;box-shadow:0 1px 3px rgba(20,24,28,.05);display:flex;flex-direction:column}
+  .card h4{font-size:27px;margin-bottom:12px}
+  .card p{font-size:24px;line-height:1.5;color:var(--ink-2)}
+  .card .ic{width:52px;height:52px;border-radius:13px;display:grid;place-items:center;margin-bottom:22px;font-family:Fraunces,serif;font-size:24px;font-weight:700;color:#fff}
+
+  .lead{font-size:32px;line-height:1.5;max-width:40ch;color:var(--ink-2)}
+  .lead b{color:var(--ink);font-weight:600}
+  .lead .hl{color:var(--primary);font-weight:600}
+
+  ul.feat{list-style:none;display:flex;flex-direction:column;gap:16px}
+  ul.feat li{position:relative;padding-left:40px;font-size:24px;line-height:1.4;color:var(--ink-2)}
+  ul.feat li::before{content:"";position:absolute;left:6px;top:11px;width:13px;height:13px;border-radius:4px;background:var(--primary)}
+  ul.feat.add li::before{content:"+";background:none;color:var(--primary);font-weight:800;font-size:26px;top:-4px;left:4px;width:auto;height:auto}
+
+  .callout{border-left:5px solid var(--primary);background:var(--primary-soft);border-radius:0 16px 16px 0;padding:30px 36px;margin-top:auto}
+  .callout.warn{border-color:var(--amber);background:color-mix(in oklab,var(--amber) 11%,transparent)}
+  .callout h4{font-size:25px;margin-bottom:8px}
+  .callout p{font-size:24px;line-height:1.46;color:var(--ink-2)}
+
+  /* ---- lifecycle stage flow ---- */
+  .stages{display:flex;flex-wrap:wrap;gap:14px}
+  .stage{font-size:22px;padding:16px 22px;border-radius:12px;background:var(--panel);border:1px solid var(--border);font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:12px}
+  .stage .n{color:var(--muted);font-size:18px}
+  .stage.gate{border-color:color-mix(in oklab,var(--amber) 55%,transparent);background:color-mix(in oklab,var(--amber) 10%,transparent)}
+  .stage.gate b{color:color-mix(in oklab,var(--amber) 60%,black)}
+
+  /* ---- engine flow ---- */
+  .flow{display:flex;align-items:stretch;gap:18px;flex-wrap:wrap}
+  .flow .box{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px 26px;font-size:22px;display:flex;align-items:center;line-height:1.3;max-width:280px}
+  .flow .box.seed{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .flow .box.out{background:var(--primary);color:#fff;border-color:var(--primary);font-family:Fraunces,serif;font-weight:600;font-size:26px}
+  .flow .ar{align-self:center;color:var(--primary);font-size:34px;font-weight:700}
+
+  /* ---- table ---- */
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:16px;overflow:hidden;font-size:23px}
+  th{text-align:left;font-size:16px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);background:var(--paper-2);padding:20px 28px;font-weight:600}
+  td{padding:22px 28px;border-top:1px solid var(--border);vertical-align:top;color:var(--ink-2);line-height:1.4}
+  td b{color:var(--ink)}
+
+  .pill{display:inline-block;font-size:17px;font-weight:600;padding:5px 15px;border-radius:99px;border:1px solid;white-space:nowrap}
+  .p-poc{color:var(--primary);border-color:color-mix(in oklab,var(--primary) 35%,transparent);background:var(--primary-soft)}
+  .p-1{color:var(--active);border-color:color-mix(in oklab,var(--active) 35%,transparent);background:color-mix(in oklab,var(--active) 11%,transparent)}
+  .p-2{color:color-mix(in oklab,var(--amber) 55%,black);border-color:color-mix(in oklab,var(--amber) 40%,transparent);background:color-mix(in oklab,var(--amber) 12%,transparent)}
+  .p-new{color:#fff;border-color:var(--primary);background:var(--primary)}
+
+  /* ---- mini board mock (release) ---- */
+  .board{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;align-items:start}
+  .bcol{background:var(--paper-2);border:1px solid var(--border);border-radius:14px;padding:16px 14px;min-height:300px}
+  .bcol.hero{background:var(--primary-soft);border-color:color-mix(in oklab,var(--primary) 30%,transparent)}
+  .bcol .bh{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .bcol .bt{font-size:17px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .bcol .bt .d{width:11px;height:11px;border-radius:99px}
+  .bcol .cnt{font-size:16px;font-variant-numeric:tabular-nums;background:#fff;border:1px solid var(--border);border-radius:99px;padding:1px 10px;color:var(--muted)}
+  .bcol.hero .cnt{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .bcol .hint{font-size:14px;color:var(--muted);line-height:1.3;margin-bottom:14px;min-height:38px}
+  .tile{background:#fff;border:1px solid var(--border);border-radius:11px;padding:13px 14px;margin-bottom:11px;box-shadow:0 1px 2px rgba(20,24,28,.04)}
+  .tile .r1{display:flex;justify-content:space-between;font-size:16px}
+  .tile .wo{font-family:"JetBrains Mono",monospace}
+  .tile .sub{font-size:14px;color:var(--muted);margin-top:3px}
+  .bar{height:7px;border-radius:99px;background:var(--paper-2);margin-top:11px;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:99px}
+  .relbtn{margin-top:11px;background:var(--primary);color:#fff;border-radius:8px;text-align:center;font-size:15px;font-weight:600;padding:8px}
+
+  /* ---- mini schedule mock ---- */
+  .sched{display:flex;align-items:flex-end;gap:18px;height:330px;position:relative;padding-top:10px}
+  .capline{position:absolute;left:0;right:0;border-top:2px dashed color-mix(in oklab,var(--primary) 70%,transparent);z-index:2}
+  .capline .lbl{position:absolute;right:0;top:-30px;font-size:16px;color:var(--primary);font-weight:600}
+  .wk{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end;gap:8px}
+  .wk .stack{width:100%;border-radius:8px 8px 0 0;overflow:hidden;display:flex;flex-direction:column-reverse;background:var(--paper-2)}
+  .wk .seg{width:100%}
+  .wk .wl{font-size:16px;font-variant-numeric:tabular-nums;font-weight:600}
+  .wk .wd{font-size:14px;color:var(--muted)}
+  .wk.over .wl{color:color-mix(in oklab,var(--amber) 55%,black)}
+  .legend{display:flex;flex-wrap:wrap;gap:22px;margin-top:28px}
+  .legend span{display:flex;align-items:center;gap:9px;font-size:18px;color:var(--muted)}
+  .legend .sw{width:16px;height:16px;border-radius:5px}
+
+  .two-pane{display:grid;grid-template-columns:1fr 1fr;gap:54px;flex:1;min-height:0;align-items:start}
+  .two-pane.tight{grid-template-columns:0.85fr 1.15fr}
+
+  @media (prefers-reduced-motion:no-preference){
+    [data-deck-active] .anim{opacity:0;transform:translateY(18px);animation:rise .6s cubic-bezier(.2,.7,.2,1) forwards}
+    [data-deck-active] .anim.d1{animation-delay:.06s}
+    [data-deck-active] .anim.d2{animation-delay:.14s}
+    [data-deck-active] .anim.d3{animation-delay:.22s}
+    [data-deck-active] .anim.d4{animation-delay:.30s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<deck-stage width="1920" height="1080">
+
+  <!-- 01 · COVER -->
+  <section class="ink" data-label="Cover">
+    <div class="grid-bg"></div>
+    <div class="slide">
+      <div class="brandrow anim">
+        <div class="logo">R</div>
+        <div><div class="nm">Ready Systems</div><div class="sub">Operations Console</div></div>
+      </div>
+      <h1 class="cover-h anim d1">Prove the costing engine.<br />Then bring the whole shop online.</h1>
+      <p class="cover-lede anim d2">A domain-specific operations console for panel &amp; wire-harness contract assembly — from a Siemens config to a costed quote, and now a planner's daily command center.</p>
+      <div class="cover-meta anim d3">
+        <div><div class="b">1</div><div class="l">POC, real orders</div></div>
+        <div><div class="b">4</div><div class="l">modules, one job ID</div></div>
+        <div><div class="b">3</div><div class="l">planning lenses</div></div>
+        <div><div class="b">0</div><div class="l">backend, by design</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 · THE PROBLEM -->
+  <section data-label="The problem">
+    <div class="slide">
+      <div class="head">
+        <div class="kicker anim">01 — Why now</div>
+        <h2 class="anim d1">Everything runs on registers and Excel</h2>
+      </div>
+      <div class="body">
+        <div class="cards cols-2">
+          <div class="card anim d2">
+            <h4>The four costs of paper &amp; spreadsheets</h4>
+            <p>It's <b>slow</b> — quoting depends on one person's memory. <b>Fragile</b> — one file, lost rows, no backup. <b>Invisible</b> — no live view of stock or job status. And <b>hard to audit</b> — paper quality records.</p>
+          </div>
+          <div class="card anim d3">
+            <h4>Where software wins</h4>
+            <p>We don't change how they build — they're experts at that. We make the paperwork digital, searchable, backed-up and connected: one record per work order, moving through known stages, with the owner's costing know-how captured.</p>
+          </div>
+        </div>
+        <div class="callout warn anim d4">
+          <h4>The principle that guides everything</h4>
+          <p>Prototype-first, mirror their reality, honour their expertise, free pilot with a graceful exit — and Tally stays for accounting; we connect to it, we don't rebuild it.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 · VISION DIVIDER -->
+  <section class="ink" data-label="Vision">
+    <div class="grid-bg"></div>
+    <div class="slide" style="justify-content:center">
+      <div class="divider-num anim">02 — The vision</div>
+      <h2 class="divider-h anim d1">Own the pre-digital factory first.<br />Then layer intelligence on top.</h2>
+      <p class="divider-dek anim d2">Two phases, each delivering value on its own. <b style="color:var(--paper)">Phase 1</b> brings every register and Excel sheet online, connected by one job ID. <b style="color:var(--paper)">Phase 2</b> adds the leap — scan-to-fill, analytics and a costing engine that learns. Intelligence needs data to be intelligent <i>about</i>.</p>
+    </div>
+  </section>
+
+  <!-- 04 · THE POC / ENGINE -->
+  <section data-label="The POC">
+    <div class="slide">
+      <div class="head">
+        <div class="kicker anim">03 — The crown jewel</div>
+        <h2 class="anim d1">First, prove the costing engine</h2>
+      </div>
+      <div class="two-pane">
+        <div>
+          <p class="lead anim d2">Turn a Siemens order — <span class="mono" style="font-size:.86em">8DJHST RRL+ME, motorised</span> — into a harness BOM and a cost, fast, without depending entirely on the owner's memory.</p>
+          <p class="lead anim d2" style="margin-top:24px;font-size:27px">That's the hardest part, the highest-value part, and the thing that makes them say <span class="hl">"we can't go back."</span> This prototype already demonstrates it, end to end.</p>
+        </div>
+        <div class="anim d3">
+          <div class="card" style="gap:18px">
+            <h4>POC scope — small &amp; sharp</h4>
+            <ul class="feat">
+              <li>Order master — enter or import a Siemens order</li>
+              <li>Feeder library — decoded configs (R/L/T/K + ME), each linked to a harness set</li>
+              <li>Costing engine — parse config → assemble BOM → apply rates → cost + quote</li>
+              <li>Validate on 3–5 real past orders vs what they actually quoted</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 · ENGINE FLOW -->
+  <section data-label="Engine flow">
+    <div class="slide">
+      <div class="head">
+        <div class="kicker anim">03 — The mechanism</div>
+        <h2 class="anim d1">From config code to quote, automatically</h2>
+      </div>
+      <div class="body" style="display:flex;flex-direction:column;justify-content:center;gap:48px">
+        <div class="flow anim d2">
+          <div class="box seed mono">RRL+ME</div>
+          <div class="ar">→</div>
+          <div class="box">parse →<br />R · R · L · ME</div>
+          <div class="ar">→</div>
+          <div class="box">feeder library →<br />harness lines</div>
+          <div class="ar">→</div>
+          <div class="box">material master →<br />priced BOM</div>
+          <div class="ar">→</div>
+          <div class="box">+ labour, wastage,<br />overhead, margin</div>
+          <div class="ar">→</div>
+          <div class="box out">Quote</div>
+        </div>
+        <div class="callout anim d3" style="margin-top:0">
+          <h4>This is the POC proof, running</h4>
+          <p>Each feeder type carries a harness set (wires + lengths + hardware) and a build time. Change the config or quantity and the whole BOM and cost rebuild. The feeder library and rates are sensible placeholders — the owner walkthrough replaces them with real values. The <i>mechanism</i> is what the POC proves, and it's here.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 · LIFECYCLE -->
+  <section data-label="Lifecycle">
+    <div class="slide">
+      <div class="head">
+        <div class="kicker anim">04 — Lifecycle</div>
+        <h2 class="anim d1">One work order, eleven stages, built-in gates</h2>
+      </div>
+      <div class="body" style="display:flex;flex-direction:column;gap:36px;justify-content:center">
+        <div class="stages anim d2">
+          <span class="stage"><span class="n">01</span> RFQ</span>
+          <span class="stage"><span class="n">02</span> Final BOM</span>
+          <span class="stage"><span class="n">03</span> Costing</span>
+          <span class="stage"><span class="n">04</span> Quote</span>
+          <span class="stage gate"><span class="n">05</span> <b>Approved ✓</b></span>
+          <span class="stage"><span class="n">06</span> PO</span>
+          <span class="stage gate"><span class="n">07</span> <b>Incoming QC ⛬</b></span>
+          <span class="stage"><span class="n">08</span> Stores</span>
+          <span class="stage"><span class="n">09</span> Build</span>
+          <span class="stage gate"><span class="n">10</span> <b>Final QC ⛬</b></span>
+          <span class="stage"><span class="n">11</span> Dispatch</span>
+        </div>
+        <div class="callout anim d3" style="margin-top:0">
+          <h4>One job ID connects all four modules</h4>
+          <p><b>Quote approval</b> opens procurement. Two hard <b>quality gates</b> mean material can't pass without an inspection record. Planning, Purchase, Stores and Quality all hang off the same W/O — that's what makes the Director's single live view possible.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 · WORKSPACE -->
+  <section data-label="Workspace">
+    <div class="slide">
+      <div class="head">
+        <div class="kicker anim">05 — How it works</div>
+        <h2 class="anim d1">A guided, gated pipeline — not a pile of tabs</h2>
+      </div>
+      <div class="two-pane tight">
+        <p class="lead anim d2">Open any W/O and a <b>stepper</b> shows exactly where it stands and the single next action. Each step <span class="hl">unlocks the next and locks the last</span> — so the process is mistake-proof by design.</p>
+        <div class="anim d3">
+          <table>
+            <tbody>
+              <tr><td style="width:34%"><b>1 · Documents</b></td><td>Schematics, layout boards (3D view), GA drawings — attached before the BOM</td></tr>
+              <tr><td><b>2 · BOM</b></td><td>Engine builds the harness. Edit, then <b>Finalize &amp; Lock</b>. Changing it needs a <b>Revise</b> → Rev n+1</td></tr>
+              <tr><td><b>3 · Costing</b></td><td>Locked until the BOM is locked. Live margin slider, per-unit price, send quote</td></tr>
+              <tr><td><b>4 · Approval</b></td><td>The gate. After approval, costing locks so the price can't drift</td></tr>
+              <tr><td><b>5 · Procurement</b></td><td>Doesn't exist until approval. Order only the shortfall; receipt is automatic</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 · MODULES -->
+  <section data-label="Modules">
+    <div class="slide">
+      <div class="head">
+        <div class="kicker anim">06 — Modules</div>
+        <h2 class="anim d1">Four modules, connected by one job ID</h2>
+      </div>
+      <div class="body">
+        <div class="cards cols-3" style="gap:22px">
+          <div class="card anim d1"><div class="ic" style="background:oklch(0.46 0.07 175)">P</div><h4>Planning / BOM</h4><p>The order master, the job workspace, and the config→harness engine. Now with a forward-looking planning spine.</p></div>
+          <div class="card anim d2"><div class="ic" style="background:var(--amber)">C</div><h4>Costing</h4><p>A worklist of orders to price, the full build-up with live margin, and save &amp; send quote.</p></div>
+          <div class="card anim d3"><div class="ic" style="background:var(--done)">U</div><h4>Purchase</h4><p>To-order by job netted against stock + POs, one-click Raise PO, bid comparison, PO register.</p></div>
+          <div class="card anim d2"><div class="ic" style="background:var(--active)">I</div><h4>Stores / Inventory</h4><p>Goods inward with full GRN traceability (auto-updates the PO), incoming QC, stock, issue-to-job.</p></div>
+          <div class="card anim d3"><div class="ic" style="background:var(--stuck)">Q</div><h4>Quality</h4><p>Final-QC pre-dispatch gate with a standard plan, the inspection archive, audit-pack export.</p></div>
+          <div class="card anim d4"><div class="ic" style="background:var(--ink)">D</div><h4>Director</h4><p>Live KPIs, the order board, stage distribution, alerts and the activity feed — read-only, always current.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 09 · PLANNING RETHINK DIVIDER -->
+  <section class="ink" data-label="Planning rethink">
+    <div class="grid-bg"></div>
+    <div class="slide" style="justify-content:center">
+      <div class="divider-num anim">07 — What's new</div>
+      <h2 class="divider-h anim d1">Planning gets a forward-looking spine</h2>
+      <p class="divider-dek anim d2">A planning manager doesn't ask "how many orders are at Costing." They ask three things: <b style="color:var(--paper)">what's going to be late, what can I release today, and what does the load look like?</b> The register stays as the system of record — and two new lenses sit on top of it.</p>
+      <div class="cover-meta anim d3" style="margin-top:48px">
+        <div><div class="b" style="color:var(--primary)">Release board</div><div class="l">material-gated — what's cleared for the floor</div></div>
+        <div><div class="b" style="color:var(--primary)">Schedule &amp; load</div><div class="l">the time axis — capacity, week by week</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 · RELEASE BOARD -->
+  <section data-label="Release board">
+    <div class="slide">
+      <div class="head" style="margin-bottom:34px">
+        <div class="kicker anim">07 — New lens · <span class="pill p-new" style="margin-left:4px">Release board</span></div>
+        <h2 class="anim d1">What can I send to the floor today?</h2>
+      </div>
+      <div class="body">
+        <div class="board anim d2">
+          <div class="bcol">
+            <div class="bh"><div class="bt"><span class="d" style="background:var(--muted)"></span>Awaiting approval</div><div class="cnt">3</div></div>
+            <div class="hint">Upstream — not yet cleared to buy or build</div>
+            <div class="tile"><div class="r1"><span class="wo">WO-2041</span></div><div class="sub">Larsen &amp; Co · RRL+ME</div></div>
+            <div class="tile"><div class="r1"><span class="wo">WO-2044</span></div><div class="sub">Tata Power · RTL</div></div>
+          </div>
+          <div class="bcol">
+            <div class="bh"><div class="bt"><span class="d" style="background:var(--stuck)"></span>Blocked</div><div class="cnt">2</div></div>
+            <div class="hint">Approved, but material is short</div>
+            <div class="tile"><div class="r1"><span class="wo">WO-2038</span></div><div class="sub">Adani · RRKL+ME</div><div class="bar"><i style="width:62%;background:var(--amber)"></i></div></div>
+            <div class="tile"><div class="r1"><span class="wo">WO-2033</span></div><div class="sub">Siemens · RL</div><div class="bar"><i style="width:75%;background:var(--amber)"></i></div></div>
+          </div>
+          <div class="bcol hero">
+            <div class="bh"><div class="bt" style="color:var(--primary)"><span class="d" style="background:var(--primary)"></span>Ready to release</div><div class="cnt">2</div></div>
+            <div class="hint">Material covered · approved · idle</div>
+            <div class="tile"><div class="r1"><span class="wo">WO-2029</span></div><div class="sub">BHEL · RRL+ME</div><div class="bar"><i style="width:100%;background:var(--done)"></i></div><div class="relbtn">Release to floor →</div></div>
+            <div class="tile"><div class="r1"><span class="wo">WO-2031</span></div><div class="sub">L&amp;T · RT</div><div class="bar"><i style="width:100%;background:var(--done)"></i></div><div class="relbtn">Release to floor →</div></div>
+          </div>
+          <div class="bcol">
+            <div class="bh"><div class="bt"><span class="d" style="background:var(--active)"></span>On the floor</div><div class="cnt">2</div></div>
+            <div class="hint">Building now</div>
+            <div class="tile"><div class="r1"><span class="wo">WO-2024</span></div><div class="sub">NTPC · RRKL</div></div>
+            <div class="tile"><div class="r1"><span class="wo">WO-2026</span></div><div class="sub">GE · RL+ME</div></div>
+          </div>
+          <div class="bcol">
+            <div class="bh"><div class="bt"><span class="d" style="background:var(--done)"></span>QC &amp; dispatch</div><div class="cnt">1</div></div>
+            <div class="hint">Final check → out the door</div>
+            <div class="tile"><div class="r1"><span class="wo">WO-2019</span></div><div class="sub">Reliance · RRL</div></div>
+          </div>
+        </div>
+        <div class="callout anim d3">
+          <h4>A report becomes a decision tool</h4>
+          <p>Every card is derived from data the engine already computes — material coverage, build minutes, stage, due date — sorted by urgency. The hero column's one-click <b>Release to floor</b> advances the job to Build and logs it. The read-line up top tells the real story: is the bench fed, or is it starving?</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 · SCHEDULE & LOAD -->
+  <section data-label="Schedule & load">
+    <div class="slide">
+      <div class="head" style="margin-bottom:30px">
+        <div class="kicker anim">07 — New lens · <span class="pill p-new" style="margin-left:4px">Schedule &amp; load</span></div>
+        <h2 class="anim d1">The time axis planning never had</h2>
+      </div>
+      <div class="two-pane tight" style="align-items:center">
+        <div>
+          <p class="lead anim d2">Build hours stacked <b>week by week</b>, each job backward-scheduled from its due date. A dashed <span class="hl">bench-capacity line</span> runs across — weeks that pile above it light up before they bite.</p>
+          <div class="legend anim d3">
+            <span><span class="sw" style="background:var(--active)"></span>On the floor</span>
+            <span><span class="sw" style="background:var(--primary)"></span>Ready</span>
+            <span><span class="sw" style="background:var(--amber)"></span>Blocked</span>
+            <span><span class="sw" style="background:var(--done)"></span>In QC</span>
+          </div>
+        </div>
+        <div class="anim d3">
+          <div class="card">
+            <div class="sched">
+              <div class="capline" style="top:78px"><span class="lbl">45h bench</span></div>
+              <div class="wk"><div class="stack" style="height:120px"><div class="seg" style="height:55%;background:var(--active)"></div><div class="seg" style="height:45%;background:var(--primary)"></div></div><div class="wl">38h</div><div class="wd">This wk</div></div>
+              <div class="wk over"><div class="stack" style="height:240px"><div class="seg" style="height:30%;background:var(--active)"></div><div class="seg" style="height:40%;background:var(--amber)"></div><div class="seg" style="height:30%;background:var(--primary)"></div></div><div class="wl">61h</div><div class="wd">23 Jun</div></div>
+              <div class="wk"><div class="stack" style="height:150px"><div class="seg" style="height:50%;background:var(--primary)"></div><div class="seg" style="height:50%;background:var(--done)"></div></div><div class="wl">42h</div><div class="wd">30 Jun</div></div>
+              <div class="wk"><div class="stack" style="height:96px"><div class="seg" style="height:100%;background:var(--primary)"></div></div><div class="wl">30h</div><div class="wd">07 Jul</div></div>
+              <div class="wk"><div class="stack" style="height:140px"><div class="seg" style="height:60%;background:var(--primary)"></div><div class="seg" style="height:40%;background:var(--amber)"></div></div><div class="wl">40h</div><div class="wd">14 Jul</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="callout anim d4" style="margin-top:30px">
+        <h4>Pull work forward before it slips</h4>
+        <p>Capacity is editable so you can test "what if I add a hand." Bars are coloured by status, past-due jobs flag red, and every block clicks through to the order. Planning without a calendar is just a list — this is the calendar.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 · ROLES -->
+  <section data-label="Roles">
+    <div class="slide">
+      <div class="head">
+        <div class="kicker anim">08 — Access</div>
+        <h2 class="anim d1">Four roles, each with a focused module set</h2>
+      </div>
+      <div class="body anim d2">
+        <table>
+          <thead><tr><th style="width:18%">Role</th><th style="width:34%">Owns</th><th>Works in</th></tr></thead>
+          <tbody>
+            <tr><td><b>Planning</b></td><td>Orders, BOM, Costing, Purchase — plus the Release board &amp; Schedule</td><td>The order workspace and the new planning lenses — config→harness, costing, release, load</td></tr>
+            <tr><td><b>Inventory</b></td><td>Inward + Incoming QC, Stock, Issue to job</td><td>Goods receipt (which auto-updates POs), stock, consumption</td></tr>
+            <tr><td><b>Quality</b></td><td>Final QC, QC records</td><td>The dispatch gate and the inspection archive</td></tr>
+            <tr><td><b>Director</b></td><td>Read-only oversight</td><td>Live view of everything: KPIs, order board, the Release board, projects, alerts</td></tr>
+          </tbody>
+        </table>
+        <p class="lead anim d3" style="margin-top:34px;font-size:27px">One person can switch roles from the avatar menu — realistic for a small team.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13 · ROADMAP -->
+  <section data-label="Roadmap">
+    <div class="slide">
+      <div class="head">
+        <div class="kicker anim">09 — Roadmap</div>
+        <h2 class="anim d1">Each stage is usable on its own</h2>
+      </div>
+      <div class="body anim d2">
+        <table>
+          <thead><tr><th style="width:16%">Stage</th><th style="width:50%">What we build</th><th>Proves / delivers</th></tr></thead>
+          <tbody>
+            <tr><td><span class="pill p-poc">POC</span></td><td>Order master + feeder library + costing engine, on real data</td><td>The crown jewel works — fast, accurate quotes</td></tr>
+            <tr><td><span class="pill p-1">Phase 1a</span></td><td>Full Planning + Stores + a real backend &amp; logins</td><td>Daily operations online, multi-user</td></tr>
+            <tr><td><span class="pill p-1">Phase 1b</span></td><td>Purchase + Quality (controlled plans, audit packs, PDF docs)</td><td>All four modules online, connected</td></tr>
+            <tr><td><span class="pill p-1">Phase 1c</span></td><td>Tally bridge + polish</td><td>Production-ready system</td></tr>
+            <tr><td><span class="pill p-2">Phase 2</span></td><td>QR / invoice scan + auto-capture + analytics + smart costing</td><td>The intelligence layer</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14 · WHERE IT STANDS -->
+  <section data-label="Where it stands">
+    <div class="slide">
+      <div class="head">
+        <div class="kicker anim">10 — Honest review</div>
+        <h2 class="anim d1">Where it stands</h2>
+      </div>
+      <div class="two-pane">
+        <p class="lead anim d2">As a <b>POC it does its job</b>: the costing engine works end-to-end on realistic data, the four modules are connected by one job ID, and planning now has a forward-looking spine. The model of the business is right — it speaks the shop's language.</p>
+        <div class="anim d3">
+          <p class="lead" style="font-size:27px">It is, deliberately, <b>not production software yet</b>: state lives in the browser, logins are demo-only, no shared database — exactly the right trade for a free, no-infrastructure pilot.</p>
+          <div class="callout warn" style="margin-top:30px">
+            <h4>The one input that unlocks the rest</h4>
+            <p>The feeder library — wires, lengths, build-times — is a placeholder. The owner walkthrough is the first real input we need; then we validate against 3–5 past quotes and we have our proof.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15 · CLOSING -->
+  <section class="ink" data-label="Next">
+    <div class="grid-bg"></div>
+    <div class="slide" style="justify-content:center">
+      <div class="brandrow anim" style="margin-bottom:50px">
+        <div class="logo">R</div>
+        <div><div class="nm">Ready Systems</div><div class="sub">Operations Console</div></div>
+      </div>
+      <h2 class="divider-h anim d1" style="font-size:64px">The next step is a 30–45 minute<br />costing walkthrough.</h2>
+      <p class="divider-dek anim d2">For each feeder type — R, L, T, K — the wires, lengths and build times, plus one real costing sheet and 3–5 past orders with their quoted price. That replaces the placeholders, and the POC becomes proof.</p>
+      <p class="anim d3" style="margin-top:46px;font-size:22px;color:rgba(244,243,236,.55);letter-spacing:.04em">Client names and figures in the demo are placeholders · scope and effort are proposals to align on.</p>
+    </div>
+  </section>
+
+</deck-stage>
+
+<script>
+  // shared footer chrome injected into every non-divider slide
+  document.querySelectorAll('deck-stage > section').forEach((s, i, all) => {
+    if (s.classList.contains('ink')) return;
+    const f = document.createElement('div');
+    f.className = 'foot';
+    f.innerHTML = '<span class="brand"><span class="dot">R</span>Ready Systems — Operations Console</span><span class="num">'
+      + String(i + 1).padStart(2, '0') + ' / ' + String(all.length).padStart(2, '0') + '</span>';
+    s.querySelector('.slide').appendChild(f);
+  });
+</script>
+<script src="deck-stage.js"></script>
+</body>
+</html>

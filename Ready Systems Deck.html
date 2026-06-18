@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ready Systems — Operations Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:oklch(0.985 0.005 90); --paper-2:oklch(0.955 0.005 90);
+    --ink:oklch(0.20 0.012 250); --ink-2:oklch(0.27 0.014 250);
+    --primary:oklch(0.46 0.07 175); --primary-soft:oklch(0.94 0.025 175);
+    --muted:oklch(0.48 0.015 250); --border:oklch(0.90 0.008 180);
+    --panel:#fff; --amber:oklch(0.66 0.16 60);
+    --done:oklch(0.58 0.13 155); --active:oklch(0.55 0.13 230); --stuck:oklch(0.58 0.20 25);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  deck-stage:not(:defined){visibility:hidden}
+  body{font-family:Inter,system-ui,sans-serif;background:#0a0c0e;color:var(--ink)}
+
+  section{font-size:26px;line-height:1.5;background:var(--paper);color:var(--ink);--pad:108px;overflow:hidden}
+  .slide{position:absolute;inset:0;padding:var(--pad);display:flex;flex-direction:column}
+  h1,h2,h3,h4{font-family:Fraunces,Georgia,serif;letter-spacing:-0.015em;line-height:1.08;font-weight:600}
+  .num{font-variant-numeric:tabular-nums}
+  .mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+
+  .kicker{font-size:19px;letter-spacing:.22em;text-transform:uppercase;color:var(--primary);font-weight:600;display:flex;align-items:center;gap:14px}
+  .kicker::before{content:"";width:44px;height:2px;background:var(--primary);display:inline-block}
+
+  .foot{position:absolute;left:var(--pad);right:var(--pad);bottom:54px;display:flex;justify-content:space-between;align-items:center;font-size:17px;color:var(--muted);letter-spacing:.04em}
+  .foot .brand{display:flex;align-items:center;gap:11px;font-weight:500;color:var(--ink-2)}
+  .foot .dot{width:20px;height:20px;border-radius:6px;background:var(--primary);display:inline-grid;place-items:center;color:#fff;font-family:Fraunces,serif;font-size:12px;font-weight:700}
+
+  .ink{background:var(--ink);color:var(--paper)}
+  .ink .foot{color:rgba(244,243,236,.5)}
+  .ink .foot .brand{color:rgba(244,243,236,.82)}
+  .grid-bg{position:absolute;inset:0;opacity:.05;background-image:linear-gradient(var(--paper) 1px,transparent 1px),linear-gradient(90deg,var(--paper) 1px,transparent 1px);background-size:64px 64px}
+
+  .brandrow{display:flex;align-items:center;gap:18px}
+  .brandrow .logo{width:66px;height:66px;border-radius:15px;background:var(--primary);display:grid;place-items:center;font-family:Fraunces,serif;font-weight:700;font-size:33px;color:#fff}
+  .brandrow .nm{font-family:Fraunces,serif;font-size:28px;font-weight:600}
+  .brandrow .sub{font-size:16px;letter-spacing:.24em;text-transform:uppercase;color:rgba(244,243,236,.52);margin-top:3px}
+
+  .cover-h{font-size:92px;line-height:1.0;font-weight:600;max-width:17ch;margin-top:auto}
+  .cover-lede{margin-top:34px;font-size:33px;line-height:1.4;max-width:48ch;color:rgba(244,243,236,.8)}
+  .cover-meta{margin-top:62px;display:flex;gap:72px;flex-wrap:wrap}
+  .cover-meta .b{font-family:Fraunces,serif;font-size:56px;font-weight:600;color:var(--paper);line-height:1}
+  .cover-meta .l{font-size:19px;color:rgba(244,243,236,.62);margin-top:10px;letter-spacing:.02em;max-width:16ch}
+
+  .head{margin-bottom:50px}
+  .head h2{font-size:62px;margin-top:18px;max-width:24ch}
+  .body{flex:1;min-height:0;display:flex;flex-direction:column}
+
+  .lead{font-size:34px;line-height:1.46;max-width:36ch;color:var(--ink-2)}
+  .lead b{color:var(--ink);font-weight:600}
+  .lead .hl{color:var(--primary);font-weight:600}
+
+  .cards{display:grid;gap:26px}
+  .cols-2{grid-template-columns:1fr 1fr}
+  .cols-4{grid-template-columns:repeat(4,1fr)}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:34px 36px;box-shadow:0 1px 3px rgba(20,24,28,.05);display:flex;flex-direction:column}
+  .card h4{font-size:27px;margin-bottom:12px}
+  .card p{font-size:24px;line-height:1.48;color:var(--ink-2)}
+  .card .ic{width:54px;height:54px;border-radius:14px;display:grid;place-items:center;margin-bottom:22px;font-family:Fraunces,serif;font-size:25px;font-weight:700;color:#fff}
+
+  .callout{border-left:6px solid var(--primary);background:var(--primary-soft);border-radius:0 16px 16px 0;padding:32px 38px;margin-top:auto}
+  .callout.warn{border-color:var(--amber);background:color-mix(in oklab,var(--amber) 11%,transparent)}
+  .callout h4{font-size:27px;margin-bottom:10px}
+  .callout p{font-size:25px;line-height:1.44;color:var(--ink-2)}
+
+  /* two-phase flow */
+  .phases{display:flex;align-items:stretch;gap:26px}
+  .phase{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:38px 40px;display:flex;flex-direction:column;position:relative}
+  .phase.now{border-color:color-mix(in oklab,var(--primary) 45%,transparent);box-shadow:0 0 0 4px var(--primary-soft)}
+  .phase .tag{font-size:18px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:var(--primary)}
+  .phase.next .tag{color:var(--amber)}
+  .phase h3{font-size:38px;margin:14px 0 18px}
+  .phase p{font-size:24px;line-height:1.45;color:var(--ink-2)}
+  .phase .when{margin-top:auto;padding-top:22px;font-size:20px;color:var(--muted);font-weight:500}
+  .arrow-big{align-self:center;color:var(--primary);font-size:48px;font-weight:700;flex:0 0 auto}
+
+  /* four modules strip */
+  .mods{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
+  .mod{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:30px 30px;display:flex;flex-direction:column}
+  .mod .ic{width:50px;height:50px;border-radius:13px;display:grid;place-items:center;margin-bottom:20px;font-family:Fraunces,serif;font-size:23px;font-weight:700;color:#fff}
+  .mod h4{font-size:25px;margin-bottom:9px}
+  .mod p{font-size:20px;line-height:1.4;color:var(--ink-2)}
+  .joinbar{margin-top:26px;display:flex;align-items:center;gap:16px;background:var(--ink);color:var(--paper);border-radius:14px;padding:22px 32px;font-size:23px}
+  .joinbar .mono{background:rgba(255,255,255,.12);padding:6px 16px;border-radius:8px;font-size:21px}
+
+  /* comparison table */
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:18px;overflow:hidden;font-size:24px}
+  th{text-align:left;font-size:18px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--paper-2);padding:22px 30px;font-weight:600}
+  th.us{color:var(--primary)}
+  td{padding:24px 30px;border-top:1px solid var(--border);vertical-align:top;color:var(--ink-2);line-height:1.36}
+  td.feat{font-weight:600;color:var(--ink);font-size:23px}
+  td.us{background:var(--primary-soft);color:var(--ink);font-weight:500}
+  td.them{color:var(--muted);font-size:22px}
+  .tick{color:var(--done);font-weight:700}
+  .cross{color:var(--stuck);font-weight:700}
+
+  .closing-h{font-size:70px;font-weight:600;max-width:22ch;margin-top:24px}
+  .closing-dek{margin-top:28px;font-size:31px;line-height:1.42;max-width:50ch;color:rgba(244,243,236,.78)}
+  .closing-dek b{color:var(--paper);font-weight:600}
+
+  @media (prefers-reduced-motion:no-preference){
+    [data-deck-active] .anim{opacity:0;transform:translateY(18px);animation:rise .6s cubic-bezier(.2,.7,.2,1) forwards}
+    [data-deck-active] .anim.d1{animation-delay:.07s}[data-deck-active] .anim.d2{animation-delay:.15s}
+    [data-deck-active] .anim.d3{animation-delay:.23s}[data-deck-active] .anim.d4{animation-delay:.31s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<deck-stage width="1920" height="1080">
+
+  <!-- 01 · COVER -->
+  <section class="ink" data-label="Cover">
+    <div class="grid-bg"></div>
+    <div class="slide">
+      <div class="brandrow anim">
+        <div class="logo">R</div>
+        <div><div class="nm">Ready Systems</div><div class="sub">Operations Console</div></div>
+      </div>
+      <h1 class="cover-h anim d1">Bring the shop online first. Add intelligence next.</h1>
+      <p class="cover-lede anim d2">A console built only for panel &amp; wire-harness contract assembly — not a generic ERP bent to fit. From a Siemens config to a costed quote, with one job ID running the floor.</p>
+      <div class="cover-meta anim d3">
+        <div><div class="b">4</div><div class="l">modules, one job ID</div></div>
+        <div><div class="b">1</div><div class="l">working POC, real orders</div></div>
+        <div><div class="b">2</div><div class="l">phases: digital → intelligence</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 · THE PROBLEM + PRINCIPLE -->
+  <section data-label="The problem">
+    <div class="slide">
+      <div class="head">
+        <div class="kicker anim">01 — Why now</div>
+        <h2 class="anim d1">The whole shop runs on registers and Excel</h2>
+      </div>
+      <div class="body">
+        <div class="cards cols-2" style="flex:1">
+          <div class="card anim d2">
+            <h4>What that costs you</h4>
+            <p><b style="color:var(--ink)">Slow</b> — quoting lives in one person's head. <b style="color:var(--ink)">Fragile</b> — one file, lost rows, no backup. <b style="color:var(--ink)">Invisible</b> — no live view of stock or job status. <b style="color:var(--ink)">Hard to audit</b> — paper quality records.</p>
+          </div>
+          <div class="card anim d3">
+            <h4>How we fix it without disruption</h4>
+            <p>We don't change how you build — you're the experts at that. We make the paperwork digital, searchable, backed-up and connected: one record per work order, moving through known stages, with the owner's costing know-how captured in software.</p>
+          </div>
+        </div>
+        <div class="callout anim d4">
+          <h4>The principle</h4>
+          <p>Digitize the factory <b style="color:var(--ink)">first</b> — then layer intelligence on top. Analytics and smart costing only work once the data exists to be intelligent about. Tally stays for accounting; we connect to it, we don't rebuild it.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 · THE CROWN JEWEL -->
+  <section data-label="Costing engine">
+    <div class="slide">
+      <div class="head">
+        <div class="kicker anim">02 — The proof</div>
+        <h2 class="anim d1">It already turns a config code into a quote</h2>
+      </div>
+      <div class="body" style="gap:44px">
+        <p class="lead anim d2" style="max-width:50ch">Enter a Siemens order — <span class="mono" style="font-size:.78em">8DJHST RRL+ME, motorised</span> — and the engine parses it, pulls each feeder's harness set, prices the BOM, and adds labour, wastage, overhead and margin. <span class="hl">A quote in seconds, not from memory.</span></p>
+        <div class="phases anim d3" style="flex:0 0 auto">
+          <div class="phase" style="padding:28px 30px"><div class="tag" style="color:var(--ink-2)">Input</div><h3 style="font-size:30px;margin:10px 0 8px" class="mono">RRL+ME</h3><p style="font-size:21px">A raw Siemens config code</p></div>
+          <div class="arrow-big">→</div>
+          <div class="phase" style="padding:28px 30px"><div class="tag" style="color:var(--ink-2)">Engine</div><h3 style="font-size:26px;margin:10px 0 8px">Parse → harness → priced BOM</h3><p style="font-size:21px">Feeder library + material master + rates</p></div>
+          <div class="arrow-big">→</div>
+          <div class="phase now" style="padding:28px 30px"><div class="tag">Output</div><h3 style="font-size:30px;margin:10px 0 8px">Costed quote</h3><p style="font-size:21px">+ labour, overhead, live margin</p></div>
+        </div>
+        <div class="callout anim d4" style="margin-top:0">
+          <h4>This is the hardest, highest-value part — and it's running</h4>
+          <p>The mechanism is proven in the POC today. Real feeder values come from one walkthrough with the owner; then we validate against 3–5 past quotes and it's no longer a demo — it's proof.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 · FOUR MODULES + ONE JOB ID -->
+  <section data-label="Four modules">
+    <div class="slide">
+      <div class="head">
+        <div class="kicker anim">03 — The system</div>
+        <h2 class="anim d1">Four modules are enough — connected by one job ID</h2>
+      </div>
+      <div class="body" style="justify-content:center;gap:0">
+        <div class="mods anim d2">
+          <div class="mod"><div class="ic" style="background:var(--primary)">P</div><h4>Planning</h4><p>Order master, the config→harness engine, costing, and a forward-looking release &amp; schedule board.</p></div>
+          <div class="mod"><div class="ic" style="background:var(--done)">S</div><h4>Purchase &amp; Stores</h4><p>Order only the shortfall, goods-inward with full GRN traceability, stock and issue-to-job.</p></div>
+          <div class="mod"><div class="ic" style="background:var(--stuck)">Q</div><h4>Quality</h4><p>Two QC gates, a focused KPI dashboard, the inspection archive and audit-pack export.</p></div>
+          <div class="mod"><div class="ic" style="background:var(--ink)">D</div><h4>Director</h4><p>One live, read-only view of everything — KPIs, the order board, alerts, activity.</p></div>
+        </div>
+        <div class="joinbar anim d3">
+          <span>Quote → Approve → Procure → Build → QC → Dispatch — every step hangs off the same</span>
+          <span class="mono">Work Order ID</span>
+        </div>
+        <div class="callout anim d4">
+          <h4>No module sprawl, on purpose</h4>
+          <p>These four cover the entire job lifecycle for this shop. We're not selling you HR, CRM and manufacturing suites you'll never switch on — we ship the four that earn their place, and they all talk to each other.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 · WHY NOT OFF-THE-SHELF ERP -->
+  <section data-label="Why us">
+    <div class="slide">
+      <div class="head" style="margin-bottom:30px">
+        <div class="kicker anim">04 — The alternative</div>
+        <h2 class="anim d1">Why not just buy an off-the-shelf ERP?</h2>
+      </div>
+      <div class="body anim d2">
+        <table style="font-size:23px">
+          <thead>
+            <tr>
+              <th style="width:23%;padding:16px 30px">&nbsp;</th>
+              <th class="us" style="width:30%;padding:16px 30px">Ready Systems</th>
+              <th style="width:47%;padding:16px 30px">Odoo · ERPNext · PMtrack · SourcePro</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="feat" style="padding:16px 30px">Fit</td>
+              <td class="us" style="padding:16px 30px">Built for harness &amp; panel assembly — speaks your config codes</td>
+              <td class="them" style="padding:16px 30px">Generic horizontal ERP, bent to fit; the costing engine you need most isn't there</td>
+            </tr>
+            <tr>
+              <td class="feat" style="padding:16px 30px">Pricing</td>
+              <td class="us" style="padding:16px 30px">One system, one price — no charge per module you turn on</td>
+              <td class="them" style="padding:16px 30px">Cheap to start, then cost climbs per app, per user, per add-on</td>
+            </tr>
+            <tr>
+              <td class="feat" style="padding:16px 30px">Infrastructure</td>
+              <td class="us" style="padding:16px 30px">We handle hosting &amp; setup — software <i>and</i> the cloud it runs on</td>
+              <td class="them" style="padding:16px 30px">Often "software only — you arrange the cloud, servers and admin"</td>
+            </tr>
+            <tr>
+              <td class="feat" style="padding:16px 30px">Implementation</td>
+              <td class="us" style="padding:16px 30px">Free pilot, prototype-first, graceful exit — proof before you commit</td>
+              <td class="them" style="padding:16px 30px">Paid implementation partners, long configuration projects up front</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="callout anim d3" style="margin-top:28px">
+          <p style="font-size:24px"><b style="color:var(--ink)">The short version:</b> they sell you a generic toolkit and a bill that grows with every module. We deliver the one thing built for this shop — and we carry the infrastructure.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 · WHERE IT STANDS + ASK -->
+  <section class="ink" data-label="Next">
+    <div class="grid-bg"></div>
+    <div class="slide" style="justify-content:center">
+      <div class="kicker anim" style="color:var(--primary)">05 — Honest status &amp; the one ask</div>
+      <h2 class="closing-h anim d1">The model is right. It needs your numbers to become proof.</h2>
+      <p class="closing-dek anim d2">As a POC it does its job: the costing engine runs end-to-end, the four modules are connected by one job ID. It's deliberately <b>not production software yet</b> — that's the right trade for a free, no-infrastructure pilot.</p>
+      <p class="closing-dek anim d3" style="margin-top:24px"><b>The one input that unlocks everything:</b> a 30–45 minute costing walkthrough — for each feeder type, the wires, lengths and build times, plus 3–5 past orders with their quoted price. That replaces our placeholders, and the demo becomes proof.</p>
+    </div>
+  </section>
+
+</deck-stage>
+
+<script>
+  document.querySelectorAll('deck-stage > section').forEach((s, i, all) => {
+    if (s.classList.contains('ink')) return;
+    const f = document.createElement('div');
+    f.className = 'foot';
+    f.innerHTML = '<span class="brand"><span class="dot">R</span>Ready Systems — Operations Console</span><span class="num">'
+      + String(i + 1).padStart(2, '0') + ' / ' + String(all.length).padStart(2, '0') + '</span>';
+    s.querySelector('.slide').appendChild(f);
+  });
+</script>
+<script src="deck-stage.js"></script>
+</body>
+</html>

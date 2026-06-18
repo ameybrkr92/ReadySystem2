@@ -1,0 +1,106 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-panel: var(--panel);
+  --color-amber: var(--amber);
+  --color-status-done: var(--status-done);
+  --color-status-active: var(--status-active);
+  --color-status-stuck: var(--status-stuck);
+  --color-status-pending: var(--status-pending);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root {
+  --radius: 0.5rem;
+
+  /* Brand */
+  --paper: oklch(0.985 0.005 90);          /* warm paper neutral */
+  --panel: oklch(1 0 0);                    /* card surface */
+  --ink:   oklch(0.20 0.012 250);           /* charcoal */
+  --primary: oklch(0.42 0.06 175);          /* deep teal-green #0B5E4F-ish */
+  --primary-foreground: oklch(0.985 0.005 90);
+  --primary-soft: oklch(0.94 0.025 175);
+  --amber: oklch(0.62 0.15 60);
+
+  /* Status */
+  --status-done:    oklch(0.58 0.13 155);
+  --status-active:  oklch(0.55 0.13 230);
+  --status-stuck:   oklch(0.58 0.20 25);
+  --status-pending: oklch(0.70 0.01 250);
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--panel);
+  --card-foreground: var(--ink);
+  --popover: var(--panel);
+  --popover-foreground: var(--ink);
+  --secondary: oklch(0.96 0.008 180);
+  --secondary-foreground: var(--ink);
+  --muted: oklch(0.955 0.005 90);
+  --muted-foreground: oklch(0.48 0.015 250);
+  --accent: oklch(0.94 0.025 175);
+  --accent-foreground: var(--primary);
+  --destructive: oklch(0.58 0.20 25);
+  --destructive-foreground: oklch(0.985 0.005 90);
+  --border: oklch(0.91 0.008 180);
+  --input: oklch(0.92 0.008 180);
+  --ring: var(--primary);
+
+  --sidebar: oklch(0.22 0.015 200);
+  --sidebar-foreground: oklch(0.92 0.008 180);
+  --sidebar-border: oklch(0.28 0.015 200);
+  --sidebar-accent: oklch(0.30 0.04 180);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html, body { background-color: var(--color-background); color: var(--color-foreground); font-family: var(--font-sans); font-feature-settings: "cv11","ss01"; }
+  h1,h2,h3,h4 { font-family: var(--font-display); letter-spacing: -0.01em; }
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px;
+  }
+}
+
+@utility card-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 2px);
+  box-shadow: 0 1px 0 0 oklch(0.20 0.012 250 / 0.04), 0 1px 2px 0 oklch(0.20 0.012 250 / 0.04);
+}
