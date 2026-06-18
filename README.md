@@ -17,6 +17,7 @@ Purchase, Stores, Quality — connected by one job ID (the Siemens W/O No).
 | `Ready Systems Console.html` | The app (loads `js/*.jsx` via in-browser Babel) |
 | `js/` | App modules: store + costing engine, order workspace, planning, costing, purchase, stores, quality |
 | `layout-3d.html` | 3D layout-board & harness visualiser (Three.js) |
+| `Product-Guide.html` | **Product guide / user manual** — how the console works end to end (workspace, modules, lifecycle gates, release notes) |
 | `Documentation.html` / `Documentation-part2.html` | Partner brief: phasing plan, modules, review, roadmap |
 | `vite-app/` | Optional production build scaffold (Vite+TS) — **behind the static POC**, regenerate from final design before using |
 
