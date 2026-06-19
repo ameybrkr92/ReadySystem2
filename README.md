@@ -19,6 +19,7 @@ Purchase, Stores, Quality — connected by one job ID (the Siemens W/O No).
 | `layout-3d.html` | 3D layout-board & harness visualiser (Three.js) |
 | `Ready-Systems-Presentation.html` | **Interactive client deck** — animated, scrolling web presentation (charts, KPI gauges, live pipeline). Present from this; it also has a print stylesheet → clean PDF |
 | `Ready-Systems-Presentation.pdf` | Exported PDF of the deck (for sharing / projectors that can't run the animations) |
+| `APPLICATION-GUIDE.md` | **Full application reference** — every role, screen, module, the lifecycle, the costing engine and the demo dataset, written so the presenter never feels lost |
 | `PRESENTER-GUIDE.md` | **Presenter's guide** — narrative, per-section talking points, a live-demo script and likely Q&A for whoever delivers the pitch |
 | `vite-app/` | Optional production build scaffold (Vite+TS) — **behind the static POC**, regenerate from final design before using |
 
