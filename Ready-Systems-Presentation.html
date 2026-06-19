@@ -150,26 +150,52 @@
   /* print-only count fallbacks (no JS / no animation needed in PDF) */
   .print-only{display:none}
 
-  /* ---- PRINT / PDF: force every animated element to its final state ---- */
+  /* ---- PRINT / PDF: render as a clean 16:9 deck, one section per slide ---- */
   @media print{
-    @page{margin:14mm}
+    @page{size:1280px 720px;margin:0}
     *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
     html,body{background:#fff}
-    .progress,.dots,.scrollcue{display:none!important}
+    .progress,.dots,.scrollcue,.foot{display:none!important}
     .count{display:none}.print-only{display:inline}
     .rv{opacity:1!important;transform:none!important}
-    .blob{display:none}.grid-bg{opacity:.10}
-    section{padding:30px 22px;break-inside:avoid}
-    .hero{min-height:auto;padding:46px 22px}
-    .hero h1{font-size:46px}
-    h2{font-size:30px}
+    .blob{display:none}.hero .grid-bg{opacity:.10}
+    /* gradient headline → solid colour (clip-to-text leaves a box in PDF) */
+    .hero h1 .hl{background:none!important;-webkit-text-fill-color:var(--primary-2)!important;color:var(--primary-2)!important}
+
+    /* every section becomes exactly one 16:9 slide; content top-anchored so the
+       heading is never clipped (hero stays vertically centred) */
+    section{width:1280px;height:720px;min-height:720px;break-before:page;break-inside:avoid;
+            display:flex;flex-direction:column;justify-content:flex-start;overflow:hidden;padding:54px 76px}
+    #hero{break-before:auto;justify-content:center}
+    .wrap{max-width:none;width:100%}
+
+    /* tighten type + components so dense slides fit one page */
+    .kick{margin-bottom:8px}
+    h2{font-size:30px;margin-bottom:8px}
+    .lead{font-size:15px;margin-bottom:16px;max-width:88ch}
+    .hero h1{font-size:62px}.hero .sub2{font-size:18px}.hero .stats{margin-top:40px}
+    .card{padding:14px 16px}.card h4{font-size:16px}.card p,.card li{font-size:13px}
+    .pain .big{font-size:24px}
+    .grid2,.grid4,.gauges{gap:12px}
+
+    /* engine slide — compact the cost chart */
+    .flow{margin-bottom:14px}.chip{padding:8px 11px}
+    .wbar{height:30px}.legend{gap:3px 20px;margin-top:10px}.legend .li{padding:3px 0;font-size:12.5px}
+    .total-row{margin-top:8px;padding-top:8px}.total-row .t{font-size:26px}
+    .engine-grid{gap:22px}
+
+    /* live slide — compact gauges + improvements */
+    .gauge svg{width:92px;height:92px}.gauge .glabel{font-size:12px;margin-top:3px}.gauge .gsub{font-size:10px}
+    .improve{gap:6px}.improve li{padding:8px 13px}.improve b{font-size:13.5px}.improve span{font-size:12.5px}
+
+    /* system slide — cap the hub diagram height */
+    .hub{max-width:440px}.pipe{margin:6px 0 18px}.stage{padding:6px 11px}
+
+    /* force charts to final state */
     .wbar i{width:var(--w)!important}
     .stage{opacity:1!important;transform:none!important}
     .gauge .v{stroke-dasharray:var(--p) 100!important}
-    .hub .edge{stroke-dashoffset:0!important}
-    .hub .pulse{display:none}
-    .card,.improve li,.gauge,.engine-grid,.hub-wrap,.grid2,.grid4,.gauges{break-inside:avoid}
-    .cta{break-inside:avoid}
+    .hub .edge{stroke-dashoffset:0!important}.hub .pulse{display:none}
   }
 </style>
 </head>
