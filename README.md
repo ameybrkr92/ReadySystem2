@@ -17,7 +17,9 @@ Purchase, Stores, Quality — connected by one job ID (the Siemens W/O No).
 | `Ready Systems Console.html` | The app (loads `js/*.jsx` via in-browser Babel) |
 | `js/` | App modules: store + costing engine, order workspace, planning, costing, purchase, stores, quality |
 | `layout-3d.html` | 3D layout-board & harness visualiser (Three.js) |
-| `Ready-Systems-Presentation.html` | **Client presentation deck** — slide-structured (one panel = one slide) for pitching to Ready Systems; print to PDF or copy into PowerPoint |
+| `Ready-Systems-Presentation.html` | **Interactive client deck** — animated, scrolling web presentation (charts, KPI gauges, live pipeline). Present from this; it also has a print stylesheet → clean PDF |
+| `Ready-Systems-Presentation.pdf` | Exported PDF of the deck (for sharing / projectors that can't run the animations) |
+| `PRESENTER-GUIDE.md` | **Presenter's guide** — narrative, per-section talking points, a live-demo script and likely Q&A for whoever delivers the pitch |
 | `vite-app/` | Optional production build scaffold (Vite+TS) — **behind the static POC**, regenerate from final design before using |
 
 ## Run locally

@@ -146,6 +146,31 @@
   ul.tick{list-style:none;padding:0;margin:8px 0 0}
   ul.tick li{padding-left:24px;position:relative;margin:8px 0}
   ul.tick li::before{content:"✓";position:absolute;left:0;color:var(--primary-2);font-weight:700}
+
+  /* print-only count fallbacks (no JS / no animation needed in PDF) */
+  .print-only{display:none}
+
+  /* ---- PRINT / PDF: force every animated element to its final state ---- */
+  @media print{
+    @page{margin:14mm}
+    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+    html,body{background:#fff}
+    .progress,.dots,.scrollcue{display:none!important}
+    .count{display:none}.print-only{display:inline}
+    .rv{opacity:1!important;transform:none!important}
+    .blob{display:none}.grid-bg{opacity:.10}
+    section{padding:30px 22px;break-inside:avoid}
+    .hero{min-height:auto;padding:46px 22px}
+    .hero h1{font-size:46px}
+    h2{font-size:30px}
+    .wbar i{width:var(--w)!important}
+    .stage{opacity:1!important;transform:none!important}
+    .gauge .v{stroke-dasharray:var(--p) 100!important}
+    .hub .edge{stroke-dashoffset:0!important}
+    .hub .pulse{display:none}
+    .card,.improve li,.gauge,.engine-grid,.hub-wrap,.grid2,.grid4,.gauges{break-inside:avoid}
+    .cta{break-inside:avoid}
+  }
 </style>
 </head>
 <body>
@@ -163,10 +188,10 @@
     <h1 class="rv in d1">Your shop floor,<br><span class="hl">one connected system.</span></h1>
     <p class="sub2 rv in d2">A purpose-built operations console for panel &amp; wire-harness contract assembly — proving the costing engine first, then bringing Planning, Purchase, Stores and Quality online under a single job number.</p>
     <div class="stats rv in d3">
-      <div><div class="n"><span class="count" data-to="4">0</span></div><div class="l">modules, one job ID</div></div>
-      <div><div class="n"><span class="count" data-to="11">0</span></div><div class="l">lifecycle stages</div></div>
-      <div><div class="n"><span class="count" data-to="3">0</span></div><div class="l">quality gates</div></div>
-      <div><div class="n"><span class="count" data-to="0">0</span></div><div class="l">infrastructure to set up</div></div>
+      <div><div class="n"><span class="count" data-to="4">0</span><span class="print-only">4</span></div><div class="l">modules, one job ID</div></div>
+      <div><div class="n"><span class="count" data-to="11">0</span><span class="print-only">11</span></div><div class="l">lifecycle stages</div></div>
+      <div><div class="n"><span class="count" data-to="3">0</span><span class="print-only">3</span></div><div class="l">quality gates</div></div>
+      <div><div class="n"><span class="count" data-to="0">0</span><span class="print-only">0</span></div><div class="l">infrastructure to set up</div></div>
     </div>
   </div>
   <a href="#why" class="scrollcue">Scroll<span style="font-size:18px">↓</span></a>
@@ -220,7 +245,7 @@
             <div class="li"><span><span class="dot seg-ovh"></span>Overhead 8%</span><b>₹2,010</b></div>
             <div class="li" style="grid-column:1/-1"><span><span class="dot seg-mar"></span>Margin 18% — the one dial you turn</span><b>₹4,880</b></div>
           </div>
-          <div class="total-row"><span style="font-weight:600">Quote total</span><span class="t">₹<span class="count" data-to="32010" data-comma="1">0</span></span></div>
+          <div class="total-row"><span style="font-weight:600">Quote total</span><span class="t">₹<span class="count" data-to="32010" data-comma="1">0</span><span class="print-only">32,010</span></span></div>
         </div>
       </div>
       <div class="rv d3">
