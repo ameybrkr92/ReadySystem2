@@ -136,6 +136,7 @@ function OrderWorkspace() {
   // (costing, approval, procurement). Everyone else (Director) views read-only.
   const canDefine = role === "Planning";
   const canCommerce = role === "Procurement";
+  const tabOwner = (t) => (t === "costing" || t === "procurement") ? "Procurement" : (t === "bom" || t === "docs" || t === "delivery") ? "Planning" : null;
   const order = orders.find(o => o.id === id) || null;
   const [tab, setTab] = wsUseState(initialTab || "overview");
   React.useEffect(() => { if (id) setTab(initialTab || "overview"); }, [id, initialTab]);
@@ -173,15 +174,23 @@ function OrderWorkspace() {
           <Stepper p={p} o={o} active={tab} onGo={go} />
         </div>
 
-        {p.next && tab !== "overview" && (
-          <div className={`mt-4 flex items-center justify-between gap-3 rounded-lg border px-4 py-3 ${p.next.warn ? "border-[color-mix(in_oklab,var(--status-stuck)_40%,transparent)] bg-[color-mix(in_oklab,var(--status-stuck)_7%,transparent)]" : p.next.muted ? "border-border bg-muted/40" : "border-primary/30 bg-primary-soft"}`}>
-            <div className="min-w-0">
-              <div className={`text-sm font-medium ${p.next.warn ? "text-[var(--status-stuck)]" : p.next.muted ? "text-muted-foreground" : "text-primary"}`}>{p.next.muted ? "" : "Next: "}{p.next.label}</div>
-              <div className="text-[11px] text-muted-foreground truncate">{p.next.hint}</div>
+        {p.next && tab !== "overview" && (() => {
+          const no = tabOwner(p.next.tab);
+          const otherOwns = no && ((no === "Procurement" && role === "Planning") || (no === "Planning" && role === "Procurement"));
+          const muted = p.next.muted || otherOwns;
+          const warn = p.next.warn && !otherOwns;
+          return (
+            <div className={`mt-4 flex items-center justify-between gap-3 rounded-lg border px-4 py-3 ${warn ? "border-[color-mix(in_oklab,var(--status-stuck)_40%,transparent)] bg-[color-mix(in_oklab,var(--status-stuck)_7%,transparent)]" : muted ? "border-border bg-muted/40" : "border-primary/30 bg-primary-soft"}`}>
+              <div className="min-w-0">
+                <div className={`text-sm font-medium ${warn ? "text-[var(--status-stuck)]" : muted ? "text-muted-foreground" : "text-primary"}`}>{otherOwns ? `Waiting on ${no}: ` : muted ? "" : "Next: "}{p.next.label}</div>
+                <div className="text-[11px] text-muted-foreground truncate">{otherOwns ? `${no} handles this step — open it to follow along, or switch role to act.` : p.next.hint}</div>
+              </div>
+              {tab !== p.next.tab && (otherOwns
+                ? <Button variant="secondary" onClick={() => go(p.next.tab)}>View →</Button>
+                : (!p.next.muted && <Button onClick={() => go(p.next.tab)} variant={p.next.warn ? "danger" : "primary"}>Go →</Button>))}
             </div>
-            {!p.next.muted && tab !== p.next.tab && <Button onClick={() => go(p.next.tab)} variant={p.next.warn ? "danger" : "primary"}>Go →</Button>}
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       <div>
@@ -252,12 +261,15 @@ function OverviewTab({ order, p, go }) {
   );
 }
 
-// ---------- View-only banner shown to the non-owning role ----------
+// ---------- Compact "view only" chip shown to the non-owning role ----------
 function OwnerNote({ owner }) {
   return (
-    <div className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-3.5 w-3.5 shrink-0"><path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" strokeLinecap="round" strokeLinejoin="round" /><circle cx="12" cy="12" r="2.5" /></svg>
-      <span>Owned by <b className="text-foreground">{owner}</b> — view only. Switch to the {owner} role to make changes here.</span>
+    <div className="mb-3 flex items-center gap-2.5">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-3 w-3"><path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" strokeLinecap="round" strokeLinejoin="round" /><circle cx="12" cy="12" r="2.5" /></svg>
+        View only · owned by <span className="text-foreground">{owner}</span>
+      </span>
+      <button onClick={() => window.__switchRole && window.__switchRole(owner)} className="text-[11px] font-medium text-primary hover:underline">Switch to {owner} →</button>
     </div>
   );
 }

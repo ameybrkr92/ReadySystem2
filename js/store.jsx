@@ -599,17 +599,21 @@ function useStore(selector) {
 }
 
 // ---- Session ----
+// Shared session store so EVERY consumer (App, OrderWorkspace, …) re-renders on a
+// role switch — not just the one that called setSession.
+let sessionState = (() => { try { const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; } })();
+const sessionListeners = new Set();
+function setSessionState(v) {
+  sessionState = v;
+  if (v) localStorage.setItem(SESSION_KEY, JSON.stringify(v)); else localStorage.removeItem(SESSION_KEY);
+  sessionListeners.forEach(l => l());
+}
 function useSession() {
-  const [s, setS] = useState(null);
-  useEffect(() => {
-    try { const raw = localStorage.getItem(SESSION_KEY); if (raw) setS(JSON.parse(raw)); } catch {}
-  }, []);
-  const update = (v) => {
-    setS(v);
-    if (v) localStorage.setItem(SESSION_KEY, JSON.stringify(v));
-    else localStorage.removeItem(SESSION_KEY);
-  };
-  return [s, update];
+  const s = useSyncExternalStore(
+    (cb) => { sessionListeners.add(cb); return () => sessionListeners.delete(cb); },
+    () => sessionState
+  );
+  return [s, setSessionState];
 }
 
 // ---- Global "open this order" signal — lets any module open the workspace ----

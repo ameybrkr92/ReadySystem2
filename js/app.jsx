@@ -54,6 +54,8 @@ function App() {
 
   const goNav = (k) => { closeOrder(); setCurrent(k); };
   window.__goNav = goNav;   // lets modules (e.g. the procurement dashboard) deep-link a sidebar view
+  // switch role in place (keeps the open order) — used by the workspace "view only" chip
+  window.__switchRole = (role) => { const u = (window.DEMO_USERS || []).find(x => x.role === role); if (u) setSession({ role: u.role, name: u.name }); };
 
   return (
     <React.Fragment>
