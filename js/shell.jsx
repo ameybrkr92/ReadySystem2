@@ -3,10 +3,11 @@ const { useEffect: shUseEffect, useRef: shUseRef, useState: shUseState } = React
 const { resetDemo, toast } = window;
 
 const DEMO_USERS = [
-  { email: "mihir@readysystems.in", password: "demo@123", role: "Director",  name: "Mihir Borker" },
-  { email: "mihir@readysystems.in", password: "demo@123", role: "Planning",  name: "Rohan Deshpande" },
-  { email: "mihir@readysystems.in", password: "demo@123", role: "Inventory", name: "Anjali Kulkarni" },
-  { email: "mihir@readysystems.in", password: "demo@123", role: "Quality",   name: "Sameer Joshi" },
+  { email: "mihir@readysystems.in", password: "demo@123", role: "Director",    name: "Mihir Borker" },
+  { email: "mihir@readysystems.in", password: "demo@123", role: "Planning",    name: "Prakash" },
+  { email: "mihir@readysystems.in", password: "demo@123", role: "Procurement", name: "Poonam" },
+  { email: "mihir@readysystems.in", password: "demo@123", role: "Inventory",   name: "Anjali" },
+  { email: "mihir@readysystems.in", password: "demo@123", role: "Quality",     name: "Rohan" },
 ];
 
 function Brand({ light = false }) {
@@ -119,11 +120,14 @@ function getRoleNav(role) {
     ];
     case "Planning": return [
       { key: "dashboard", label: "Dashboard", icon: ICONS.dashboard },
+      { key: "orders", label: "Orders & BOM", icon: ICONS.orders },
       { key: "release", label: "Release board", icon: ICONS.release },
       { key: "schedule", label: "Schedule & load", icon: ICONS.schedule },
-      { key: "orders", label: "Orders & BOM", icon: ICONS.orders },
+    ];
+    case "Procurement": return [
+      { key: "purchase", label: "Procurement desk", icon: ICONS.purchase },
       { key: "costing", label: "Costing", icon: ICONS.costing },
-      { key: "purchase", label: "Purchase", icon: ICONS.purchase },
+      { key: "orders", label: "Orders", icon: ICONS.orders },
     ];
     case "Inventory": return [
       { key: "inward", label: "Inward + QC", icon: ICONS.records },

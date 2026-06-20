@@ -15,12 +15,15 @@ function renderModule(role, key) {
     if (key === "quality") return <Quality view="records" readOnly />;
   }
   if (role === "Planning") {
+    if (key === "orders") return <Planning />;
     if (key === "release") return <ReleaseBoard />;
     if (key === "schedule") return <ScheduleBoard />;
-    if (key === "orders") return <Planning />;
-    if (key === "costing") return <Costing />;
-    if (key === "purchase") return <Purchase />;
     return <PlanningDashboard />;
+  }
+  if (role === "Procurement") {
+    if (key === "costing") return <Costing />;
+    if (key === "orders") return <Planning />;
+    return <Purchase />;            // default — the procurement desk (Today board)
   }
   if (role === "Inventory") {
     if (key === "stock") return <Stores view="stock" />;
