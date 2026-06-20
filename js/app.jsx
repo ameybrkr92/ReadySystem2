@@ -22,6 +22,7 @@ function renderModule(role, key) {
   }
   if (role === "Procurement") {
     if (key === "dashboard") return <ProcurementDashboard />;
+    if (key === "orders") return <Planning readOnly />;   // can open & cost jobs, not create them
     if (key === "costing") return <Costing />;
     return <Purchase />;            // 'purchase' — the procurement desk
   }

@@ -109,7 +109,7 @@ function getRoleNav(role) {
   switch (role) {
     case "Director": return [
       { key: "dashboard", label: "Dashboard", icon: ICONS.dashboard },
-      { key: "orders", label: "Orders", icon: ICONS.orders },
+      { key: "orders", label: "Work orders", icon: ICONS.orders },
       { key: "projects", label: "Projects", icon: ICONS.project },
       { key: "release", label: "Release board", icon: ICONS.release },
       { key: "purchase", label: "Purchase", icon: ICONS.purchase },
@@ -120,12 +120,13 @@ function getRoleNav(role) {
     ];
     case "Planning": return [
       { key: "dashboard", label: "Dashboard", icon: ICONS.dashboard },
-      { key: "orders", label: "Orders & BOM", icon: ICONS.orders },
+      { key: "orders", label: "Work orders", icon: ICONS.orders },
       { key: "release", label: "Release board", icon: ICONS.release },
       { key: "schedule", label: "Schedule & load", icon: ICONS.schedule },
     ];
     case "Procurement": return [
       { key: "dashboard", label: "Dashboard", icon: ICONS.dashboard },
+      { key: "orders", label: "Work orders", icon: ICONS.orders },
       { key: "purchase", label: "Procurement desk", icon: ICONS.purchase },
       { key: "costing", label: "Costing", icon: ICONS.costing },
     ];

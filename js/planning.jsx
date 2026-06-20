@@ -65,8 +65,8 @@ function Planning({ readOnly = false }) {
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Orders &amp; BOM</h1>
-          <p className="text-sm text-muted-foreground">Every work order. Click one to open its workspace — config → harness, costing, procurement, drawings, all in one place.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Work orders</h1>
+          <p className="text-sm text-muted-foreground">Every work order. Click one to open its workspace — Planning owns documents &amp; BOM; Procurement owns costing, approval &amp; buying.</p>
         </div>
         <div className="flex items-center gap-2">
           <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search W/O, client, config…" className="!w-56" />

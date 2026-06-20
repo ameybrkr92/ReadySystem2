@@ -126,10 +126,16 @@ function Stepper({ p, o, active, onGo }) {
 }
 
 function OrderWorkspace() {
-  const { useStore, useOpenOrder, closeOrder, Pill, Button } = window;
+  const { useStore, useSession, useOpenOrder, closeOrder, Pill, Button } = window;
   const { id, tab: initialTab } = useOpenOrder();
   const orders = useStore(s => s.orders);
   useStore(s => s.pos); useStore(s => s.stock); useStore(s => s.inwards);
+  const [session] = useSession();
+  const role = session ? session.role : null;
+  // Separation of duties: Planning defines (docs, BOM, build); Procurement prices & buys
+  // (costing, approval, procurement). Everyone else (Director) views read-only.
+  const canDefine = role === "Planning";
+  const canCommerce = role === "Procurement";
   const order = orders.find(o => o.id === id) || null;
   const [tab, setTab] = wsUseState(initialTab || "overview");
   React.useEffect(() => { if (id) setTab(initialTab || "overview"); }, [id, initialTab]);
@@ -180,11 +186,11 @@ function OrderWorkspace() {
 
       <div>
         {tab === "overview" && <OverviewTab order={o} p={p} go={go} />}
-        {tab === "docs" && <DocsTab order={o} />}
-        {tab === "bom" && <BomTab order={o} p={p} />}
-        {tab === "costing" && <CostingTab order={o} p={p} />}
-        {tab === "procurement" && <ProcurementTab order={o} p={p} />}
-        {tab === "delivery" && <DeliveryTab order={o} p={p} />}
+        {tab === "docs" && <DocsTab order={o} canEdit={canDefine} />}
+        {tab === "bom" && <BomTab order={o} p={p} canEdit={canDefine} />}
+        {tab === "costing" && <CostingTab order={o} p={p} canEdit={canCommerce} />}
+        {tab === "procurement" && <ProcurementTab order={o} p={p} canEdit={canCommerce} />}
+        {tab === "delivery" && <DeliveryTab order={o} p={p} canEdit={canDefine} />}
       </div>
     </div>
   );
@@ -246,8 +252,18 @@ function OverviewTab({ order, p, go }) {
   );
 }
 
+// ---------- View-only banner shown to the non-owning role ----------
+function OwnerNote({ owner }) {
+  return (
+    <div className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-3.5 w-3.5 shrink-0"><path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" strokeLinecap="round" strokeLinejoin="round" /><circle cx="12" cy="12" r="2.5" /></svg>
+      <span>Owned by <b className="text-foreground">{owner}</b> — view only. Switch to the {owner} role to make changes here.</span>
+    </div>
+  );
+}
+
 // ---------- Documents ----------
-function DocsTab({ order }) {
+function DocsTab({ order, canEdit = true }) {
   const { addOrderDoc, removeOrderDoc, logActivity, toast, uid, todayISO, fmtDate, DOC_KINDS, MAX_DOC_BYTES, Field, Input, Select, Empty, Pill, Card } = window;
   const o = order;
   const docs = o.docs || [];
@@ -269,7 +285,8 @@ function DocsTab({ order }) {
   return (
     <Card title="Engineering documents" action={<span className="text-xs text-muted-foreground">{docs.length} {docs.length === 1 ? "file" : "files"}</span>}>
       <p className="text-sm text-muted-foreground mb-4">Schematics, layout boards, GA drawings &amp; datasheets — attached to the job before you build the BOM, visible to every role.</p>
-      <div className="mb-4 grid sm:grid-cols-[10rem_8rem_1fr] gap-2 items-end">
+      {!canEdit && <OwnerNote owner="Planning" />}
+      {canEdit && <div className="mb-4 grid sm:grid-cols-[10rem_8rem_1fr] gap-2 items-end">
         <Field label="Document type"><Select value={kind} onChange={e => setKind(e.target.value)}>{DOC_KINDS.map(k => <option key={k}>{k}</option>)}</Select></Field>
         <Field label="Revision"><Input value={rev} onChange={e => setRev(e.target.value)} placeholder="Rev A" /></Field>
         <div onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={e => { e.preventDefault(); setDrag(false); ingest(e.dataTransfer.files); }} onClick={() => inputRef.current && inputRef.current.click()}
@@ -278,7 +295,7 @@ function DocsTab({ order }) {
           Drop PDF/DWG/PNG here or click to browse
         </div>
         <input ref={inputRef} type="file" multiple accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.svg" className="hidden" onChange={e => ingest(e.target.files)} />
-      </div>
+      </div>}
       {docs.length === 0 ? <Empty title="No documents yet" hint="Attach the client schematic and your layout board." /> : (
         <ul className="space-y-2">
           {docs.map(d => (
@@ -292,7 +309,7 @@ function DocsTab({ order }) {
                 <Pill tone={DOC_TONE[d.kind]}>{d.kind}</Pill>
                 {d.kind === "Layout board" && <a href="layout-3d.html" target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">View 3D</a>}
                 {d.dataUrl && <a href={d.dataUrl} download={d.name} className="text-xs text-primary hover:underline">Download</a>}
-                <button onClick={() => removeOrderDoc(o.id, d.id)} className="text-xs text-[var(--status-stuck)]">Remove</button>
+                {canEdit && <button onClick={() => removeOrderDoc(o.id, d.id)} className="text-xs text-[var(--status-stuck)]">Remove</button>}
               </div>
             </li>
           ))}
@@ -303,11 +320,12 @@ function DocsTab({ order }) {
 }
 
 // ---------- BOM (lock / revise) ----------
-function BomTab({ order, p }) {
+function BomTab({ order, p, canEdit = true }) {
   const { parseConfig, FEEDER_LIBRARY, FEEDER_LEGEND, buildMinutes, regenerateHarness, lockBom, reviseBom, setStoreState, logActivity, uid, toast, Card, Pill, Button, Table, Input, Select, Empty, Modal, fmtNum, fmtINR2 } = window;
   const o = order;
   const oid = o.id;
   const locked = p.bomLocked;
+  const ed = canEdit && !locked;   // can actually edit lines right now
   const feeders = parseConfig(o.config);
   const harness = (o.bom || []).filter(b => b.source !== "addition");
   const additions = (o.bom || []).filter(b => b.source === "addition");
@@ -321,6 +339,7 @@ function BomTab({ order, p }) {
 
   return (
     <div className="space-y-6">
+      {!canEdit && <OwnerNote owner="Planning" />}
       {/* Lock banner */}
       {locked ? (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--status-done)]/30 bg-[color-mix(in_oklab,var(--status-done)_8%,transparent)] px-4 py-3">
@@ -328,16 +347,16 @@ function BomTab({ order, p }) {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-[var(--status-done)]"><rect x="5" y="11" width="14" height="9" rx="1" /><path d="M8 11V8a4 4 0 018 0v3" strokeLinecap="round" /></svg>
             <span><b>BOM locked</b> · Rev {p.bomRev}. Read-only — revise to change it.</span>
           </div>
-          <Button variant="secondary" onClick={() => setConfirmRevise(true)}>Revise BOM</Button>
+          {canEdit && <Button variant="secondary" onClick={() => setConfirmRevise(true)}>Revise BOM</Button>}
         </div>
       ) : (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary-soft px-4 py-3">
-          <div className="text-sm text-primary">Draft BOM — edit freely, then lock to start costing. {p.hasQuote ? "Locking creates Rev " + p.bomRev + "; the quote will need re-sending." : ""}</div>
-          <Button onClick={() => { lockBom(oid); logActivity("Planning", `BOM locked (Rev ${o.bomRev}) — ${o.woNo}`); toast("BOM locked"); }} disabled={(o.bom || []).length === 0}>🔒 Finalize &amp; lock BOM</Button>
+          <div className="text-sm text-primary">{canEdit ? <>Draft BOM — edit freely, then lock to start costing. {p.hasQuote ? "Locking creates Rev " + p.bomRev + "; the quote will need re-sending." : ""}</> : "Draft BOM — Planning is still finalising it; costing opens once it's locked."}</div>
+          {canEdit && <Button onClick={() => { lockBom(oid); logActivity("Planning", `BOM locked (Rev ${o.bomRev}) — ${o.woNo}`); toast("BOM locked"); }} disabled={(o.bom || []).length === 0}>🔒 Finalize &amp; lock BOM</Button>}
         </div>
       )}
 
-      <Card title="Costing engine — config → harness" action={!locked && <Button variant="secondary" onClick={() => { regenerateHarness(oid); logActivity("Planning", `Harness rebuilt from ${o.config} (${o.woNo})`); toast("Harness rebuilt from config"); }}>↻ Rebuild from config</Button>}>
+      <Card title="Costing engine — config → harness" action={ed &&<Button variant="secondary" onClick={() => { regenerateHarness(oid); logActivity("Planning", `Harness rebuilt from ${o.config} (${o.woNo})`); toast("Harness rebuilt from config"); }}>↻ Rebuild from config</Button>}>
         <p className="text-sm text-muted-foreground mb-3">The engine parses <span className="font-mono text-foreground">{o.config}</span> into feeders, then assembles the harness from the feeder library — priced from the material master.</p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {feeders.map((f, i) => {
@@ -353,29 +372,29 @@ function BomTab({ order, p }) {
           {harness.length === 0 ? <tr><td colSpan={6} className="px-4 py-6"><Empty title="No harness yet" hint="Click Rebuild from config" /></td></tr> : harness.map(b => (
             <tr key={b.id}>
               <td className="px-4 py-2">{b.description}</td>
-              <td className="px-4 py-2 w-24"><Input type="number" value={b.qty} disabled={locked} onChange={e => update(b.id, { qty: Number(e.target.value) })} /></td>
+              <td className="px-4 py-2 w-24"><Input type="number" value={b.qty} disabled={!ed} onChange={e => update(b.id, { qty: Number(e.target.value) })} /></td>
               <td className="px-4 py-2 text-xs">{b.unit}</td>
-              <td className="px-4 py-2 w-24"><Input type="number" value={b.rate ?? 0} disabled={locked} onChange={e => update(b.id, { rate: Number(e.target.value) })} /></td>
+              <td className="px-4 py-2 w-24"><Input type="number" value={b.rate ?? 0} disabled={!ed} onChange={e => update(b.id, { rate: Number(e.target.value) })} /></td>
               <td className="px-4 py-2 num text-right">{fmtINR2((b.qty || 0) * (b.rate || 0))}</td>
-              <td className="px-4 py-2 text-right">{!locked && <button className="text-xs text-[var(--status-stuck)]" onClick={() => removeLine(b.id)}>✕</button>}</td>
+              <td className="px-4 py-2 text-right">{ed &&<button className="text-xs text-[var(--status-stuck)]" onClick={() => removeLine(b.id)}>✕</button>}</td>
             </tr>
           ))}
         </Table>
         <div className="mt-2 text-right text-sm">Harness material: <span className="num font-medium">{fmtINR2(harnessTotal)}</span></div>
       </Card>
 
-      <Card title="Manual additions" action={!locked && <Button variant="secondary" onClick={addLine}>+ Add line</Button>}>
+      <Card title="Manual additions" action={ed &&<Button variant="secondary" onClick={addLine}>+ Add line</Button>}>
         <p className="text-xs text-muted-foreground mb-3">Anything beyond the engine — special hardware, client-supplied items, one-off extras.</p>
         {additions.length === 0 ? <Empty title="No additions" hint={locked ? "" : "Most orders need none — the engine covers the harness."} /> : (
           <Table headers={["Description", "Qty", "Unit", "Rate ₹", "Subtotal", ""]}>
             {additions.map(b => (
               <tr key={b.id}>
-                <td className="px-4 py-2"><Input value={b.description} disabled={locked} onChange={e => update(b.id, { description: e.target.value })} /></td>
-                <td className="px-4 py-2 w-24"><Input type="number" value={b.qty} disabled={locked} onChange={e => update(b.id, { qty: Number(e.target.value) })} /></td>
-                <td className="px-4 py-2 w-24"><Select value={b.unit} disabled={locked} onChange={e => update(b.id, { unit: e.target.value })}><option value="m">m</option><option value="nos">nos</option></Select></td>
-                <td className="px-4 py-2 w-24"><Input type="number" value={b.rate ?? 0} disabled={locked} onChange={e => update(b.id, { rate: Number(e.target.value) })} /></td>
+                <td className="px-4 py-2"><Input value={b.description} disabled={!ed} onChange={e => update(b.id, { description: e.target.value })} /></td>
+                <td className="px-4 py-2 w-24"><Input type="number" value={b.qty} disabled={!ed} onChange={e => update(b.id, { qty: Number(e.target.value) })} /></td>
+                <td className="px-4 py-2 w-24"><Select value={b.unit} disabled={!ed} onChange={e => update(b.id, { unit: e.target.value })}><option value="m">m</option><option value="nos">nos</option></Select></td>
+                <td className="px-4 py-2 w-24"><Input type="number" value={b.rate ?? 0} disabled={!ed} onChange={e => update(b.id, { rate: Number(e.target.value) })} /></td>
                 <td className="px-4 py-2 num text-right">{fmtINR2((b.qty || 0) * (b.rate || 0))}</td>
-                <td className="px-4 py-2 text-right">{!locked && <button className="text-xs text-[var(--status-stuck)]" onClick={() => removeLine(b.id)}>✕</button>}</td>
+                <td className="px-4 py-2 text-right">{ed &&<button className="text-xs text-[var(--status-stuck)]" onClick={() => removeLine(b.id)}>✕</button>}</td>
               </tr>
             ))}
           </Table>
@@ -395,12 +414,12 @@ function BomTab({ order, p }) {
 }
 
 // ---------- Costing & Quote (gated behind BOM lock) ----------
-function CostingTab({ order, p }) {
+function CostingTab({ order, p, canEdit = true }) {
   const { computeCosting, updateOrderCosting, saveQuote, approveQuote, logActivity, toast, Card, Button, Field, Input, Empty, Pill, fmtINR, fmtINR2, fmtNum, fmtDate } = window;
   const o = order;
   const c = computeCosting(o);
   const [decisionOpen, setDecisionOpen] = wsUseState(false);
-  const editable = p.bomLocked && !p.approved;       // can't tweak price after approval (unless revised)
+  const editable = canEdit && p.bomLocked && !p.approved;   // Procurement-owned; can't tweak after approval
   const setC = (patch) => updateOrderCosting(o.id, patch);
   const bump = (key, delta, min, max) => { const v = Math.min(max, Math.max(min, (c[key]) + delta)); setC({ [key]: +v.toFixed(1) }); };
 
@@ -421,6 +440,7 @@ function CostingTab({ order, p }) {
 
   return (
     <div className="space-y-6">
+      {!canEdit && <OwnerNote owner="Procurement" />}
       {p.stale && (
         <div className="rounded-lg border border-[color-mix(in_oklab,var(--status-stuck)_40%,transparent)] bg-[color-mix(in_oklab,var(--status-stuck)_7%,transparent)] px-4 py-3 text-sm text-[var(--status-stuck)]">
           ⚠ The BOM was revised to <b>Rev {p.bomRev}</b> after this quote (Rev {o.quote.rev}, on BOM Rev {o.quote.bomRevAtQuote}). Re-send the quote to bring it up to date.
@@ -470,8 +490,8 @@ function CostingTab({ order, p }) {
             {p.approved && <span>Quote <b>Rev {o.quote.rev}</b> · {fmtINR(o.quote.total)} · <Pill tone="done">Approved</Pill>{o.quote.clientRef ? <span className="text-muted-foreground"> · client ref {o.quote.clientRef}</span> : null} — costing is now locked.</span>}
           </div>
           <div className="flex items-center gap-2">
-            {(!p.hasQuote || p.stale || p.rejected) && <Button onClick={() => { saveQuote(o.id); logActivity("Planning", `Quote ${p.hasQuote ? "re-sent" : "sent"} — ${o.woNo} (${fmtINR(c.total)})`); toast("Quote sent — awaiting client approval"); }}>{p.hasQuote ? "Revise & re-send" : "Send quote"} →</Button>}
-            {p.hasQuote && !p.approved && !p.stale && p.quoteStatus === "sent" && <Button onClick={() => setDecisionOpen(true)}>Record client decision →</Button>}
+            {canEdit && (!p.hasQuote || p.stale || p.rejected) && <Button onClick={() => { saveQuote(o.id); logActivity("Procurement", `Quote ${p.hasQuote ? "re-sent" : "sent"} — ${o.woNo} (${fmtINR(c.total)})`); toast("Quote sent — awaiting client approval"); }}>{p.hasQuote ? "Revise & re-send" : "Send quote"} →</Button>}
+            {canEdit && p.hasQuote && !p.approved && !p.stale && p.quoteStatus === "sent" && <Button onClick={() => setDecisionOpen(true)}>Record client decision →</Button>}
           </div>
         </div>
         {p.quoteStatus === "sent" && !p.stale && <p className="mt-3 text-[11px] text-muted-foreground">The quote is with the client. Procurement stays locked until you record their approval — with the client's reference and approval date.</p>}
@@ -541,7 +561,7 @@ function RecordDecisionModal({ order, total, onClose }) {
 }
 
 // ---------- Procurement (gated behind approval) ----------
-function ProcurementTab({ order, p }) {
+function ProcurementTab({ order, p, canEdit = true }) {
   const { getState, useStore, setStoreState, logActivity, uid, nowISO, rateOf, materialMeta, procurementDecision, toast, Card, Pill, Button, Select, Table, Empty, fmtNum, fmtINR, NewRFQModal, CompareModal } = window;
   useStore(s => s.pos); useStore(s => s.inwards); useStore(s => s.stock);
   const rfqs = useStore(s => s.supplierRfqs);
@@ -576,7 +596,7 @@ function ProcurementTab({ order, p }) {
       const ord = s.orders.find(x => x.id === o.id); if (ord && ord.stage === "Approved") ord.stage = "PO";
       return s;
     });
-    logActivity("Planning", `${poNo} raised to ${supplier} — ${shortages.length} items (${o.woNo})`);
+    logActivity("Procurement", `${poNo} raised to ${supplier} — ${shortages.length} items (${o.woNo})`);
     toast("PO raised");
   }
 
@@ -584,6 +604,7 @@ function ProcurementTab({ order, p }) {
 
   return (
     <div className="space-y-6">
+      {!canEdit && <OwnerNote owner="Procurement" />}
       {/* Decision banner — RFQ is the exception, not the gate */}
       {shortages.length > 0 && (
         hasOpenRfq ? (
@@ -600,15 +621,15 @@ function ProcurementTab({ order, p }) {
                 <div className="mt-1.5 text-sm text-foreground">{dec.reason}</div>
                 <div className="mt-0.5 text-[11px] text-muted-foreground">Compare 2–3 suppliers, then award — awarding raises the PO automatically.</div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              {canEdit && <div className="flex items-center gap-2 shrink-0">
                 <Button onClick={() => setRfqOpen(true)}>Get quotes →</Button>
-              </div>
+              </div>}
             </div>
-            <div className="mt-3 flex items-center gap-2 border-t border-[color-mix(in_oklab,var(--amber)_25%,transparent)] pt-3">
+            {canEdit && <div className="mt-3 flex items-center gap-2 border-t border-[color-mix(in_oklab,var(--amber)_25%,transparent)] pt-3">
               <span className="text-[11px] text-muted-foreground">Or skip quoting:</span>
               <Select value={supplier} onChange={e => setSupplier(e.target.value)} className="!w-auto">{suppliers.map(s => <option key={s}>{s}</option>)}</Select>
               <Button variant="secondary" onClick={raisePo}>Raise PO anyway · {shortages.length}</Button>
-            </div>
+            </div>}
           </div>
         ) : (
           <div className="rounded-lg border border-primary/30 bg-primary-soft p-4">
@@ -618,13 +639,13 @@ function ProcurementTab({ order, p }) {
                 <div className="mt-1.5 text-sm text-foreground">{dec.reason}</div>
                 <div className="mt-0.5 text-[11px] text-muted-foreground">One click raises a PO to <b className="text-foreground">{dec.preferred}</b> for all {shortages.length} short item{shortages.length > 1 ? "s" : ""}.</div>
               </div>
-              <div className="flex flex-col items-end gap-2 shrink-0">
+              {canEdit && <div className="flex flex-col items-end gap-2 shrink-0">
                 <div className="flex items-center gap-2">
                   <Select value={supplier} onChange={e => setSupplier(e.target.value)} className="!w-auto">{suppliers.map(s => <option key={s}>{s}</option>)}</Select>
                   <Button onClick={raisePo}>Raise PO · {fmtINR(dec.value)}</Button>
                 </div>
                 <button onClick={() => setRfqOpen(true)} className="text-[11px] text-primary hover:underline">or get quotes instead →</button>
-              </div>
+              </div>}
             </div>
           </div>
         )
@@ -697,7 +718,7 @@ function ProcurementTab({ order, p }) {
 }
 
 // ---------- Build & recovery (build floor → final QC → dispatch, with rework loop) ----------
-function DeliveryTab({ order, p }) {
+function DeliveryTab({ order, p, canEdit = true }) {
   const { useStore, getState, buildMinutes, setStoreState, logActivity, toast, Card, Pill, Button, Empty, fmtDate, fmtDateTime, fmtNum, STAGES } = window;
   useStore(s => s.issues); useStore(s => s.finalQcJobs); useStore(s => s.qcRecords); useStore(s => s.orders);
   const o = order;
@@ -745,6 +766,7 @@ function DeliveryTab({ order, p }) {
 
   return (
     <div className="space-y-5">
+      {!canEdit && <OwnerNote owner="Planning" />}
       {o.rework ? (
         <div className="rounded-lg border border-[color-mix(in_oklab,var(--status-stuck)_40%,transparent)] bg-[color-mix(in_oklab,var(--status-stuck)_7%,transparent)] px-4 py-3 text-sm text-[var(--status-stuck)]">
           <span className="font-semibold">⟲ In recovery — back on the floor for rework.</span> {o.rework.reason} · since {fmtDate(o.rework.since)}. Fix it, then mark the build complete to re-enter Final QC. The failed report is below.
@@ -775,7 +797,7 @@ function DeliveryTab({ order, p }) {
                 </table>
               </div>
             )}
-            {o.stage === "Build" && (
+            {o.stage === "Build" && canEdit && (
               <div className="mt-3 flex items-center gap-3">
                 <Button onClick={markBuildComplete}>{o.rework ? "Rework done — back to Final QC →" : "Mark build complete → Final QC"}</Button>
                 <span className="text-[11px] text-muted-foreground">Sends the finished job to the Final QC gate.</span>
