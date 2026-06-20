@@ -9,11 +9,11 @@ function Costing({ readOnly = false }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Costing</h1>
-        <p className="text-sm text-muted-foreground">Orders waiting to be priced or quoted. Open one to use the costing engine — material from the harness, labour from build-time, your margin, the quote.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Quoting</h1>
+        <p className="text-sm text-muted-foreground">Price each job and send the <b className="text-foreground">client</b> a quote. Open one to run the costing engine — material from the harness, labour from build-time, your margin → the quote total. (This is the price to the customer, not supplier cost.)</p>
       </div>
 
-      <Card title={`Costing worklist (${queue.length})`}>
+      <Card title={`Jobs to quote (${queue.length})`}>
         {queue.length === 0 ? <Empty title="Nothing waiting" hint="Finalise a BOM in Planning to send it here." /> : (
           <Table headers={["W/O No", "Client", "Config", "Qty", "Engine cost", "Margin", "Quote", "Stage", ""]}>
             {queue.map(o => {
