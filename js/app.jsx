@@ -2,7 +2,7 @@
 const { useEffect: appUseEffect, useMemo: appUseMemo, useState: appUseState } = React;
 
 function renderModule(role, key) {
-  const { Director, DirectorProjects, Planning, PlanningDashboard, Projects, ReleaseBoard, ScheduleBoard, Costing, Purchase, Stores, Quality, QualityDashboard } = window;
+  const { Director, DirectorProjects, Planning, PlanningDashboard, Projects, ReleaseBoard, ScheduleBoard, Costing, Purchase, ProcurementDashboard, Stores, Quality, QualityDashboard } = window;
   if (role === "Director") {
     if (key === "dashboard") return <Director />;
     if (key === "orders") return <Planning readOnly />;
@@ -21,9 +21,9 @@ function renderModule(role, key) {
     return <PlanningDashboard />;
   }
   if (role === "Procurement") {
+    if (key === "dashboard") return <ProcurementDashboard />;
     if (key === "costing") return <Costing />;
-    if (key === "orders") return <Planning />;
-    return <Purchase />;            // default — the procurement desk (Today board)
+    return <Purchase />;            // 'purchase' — the procurement desk
   }
   if (role === "Inventory") {
     if (key === "stock") return <Stores view="stock" />;
@@ -52,6 +52,7 @@ function App() {
   if (!session) return (<React.Fragment><Login onLogin={setSession} /><Toaster /></React.Fragment>);
 
   const goNav = (k) => { closeOrder(); setCurrent(k); };
+  window.__goNav = goNav;   // lets modules (e.g. the procurement dashboard) deep-link a sidebar view
 
   return (
     <React.Fragment>

@@ -5,7 +5,7 @@
 //   • Quotes     — RFQ compare / award (multi-source, above threshold)
 //   • Suppliers  — scorecard that informs who to award to
 // Per-job buying still happens in the order workspace; cross-job + stock buying lives here.
-const { useState: puUseState, useMemo: puUseMemo } = React;
+const { useState: puUseState, useMemo: puUseMemo, useEffect: puUseEffect } = React;
 
 function Kpi_pu({ label, value, tone, hint }) {
   const color = tone === "bad" ? "text-[var(--status-stuck)]" : tone === "warn" ? "text-[var(--amber)]" : tone === "good" ? "text-[var(--status-done)]" : "";
@@ -39,7 +39,9 @@ function Purchase({ readOnly = false }) {
   const { useStore, getState, openOrder, replenishmentPlan, projectBuys, openPoBoard, setPoConfirmed, invoiceMatch, materialMeta } = window;
   useStore(s => s.orders); useStore(s => s.pos); useStore(s => s.stock); useStore(s => s.inwards); useStore(s => s.supplierRfqs); useStore(s => s.invoices);
   const s = getState();
-  const [view, setView] = puUseState("today");
+  // the dashboard can deep-link a specific tab via window.__deskTab
+  const [view, setView] = puUseState(window.__deskTab || "buy");
+  puUseEffect(() => { window.__deskTab = null; }, []);
   const [compareId, setCompareId] = puUseState(null);
   const [poModal, setPoModal] = puUseState(null);   // { title, woNo, supplier, items }
   const [rfqFor, setRfqFor] = puUseState(null);      // { orderId } | null
@@ -64,10 +66,9 @@ function Purchase({ readOnly = false }) {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Procurement desk</h1>
-          <p className="text-sm text-muted-foreground max-w-2xl">One buyer's cockpit across every job. The lifecycle, left to right — see <b className="text-foreground">what to buy</b>, <b className="text-foreground">source</b> it, track the <b className="text-foreground">orders</b>, then clear the <b className="text-foreground">bills</b>.</p>
+          <p className="text-sm text-muted-foreground max-w-2xl">Where the buying gets done. Left to right — see <b className="text-foreground">what to buy</b>, <b className="text-foreground">source</b> it, track the <b className="text-foreground">orders</b>, clear the <b className="text-foreground">bills</b>, and rate <b className="text-foreground">suppliers</b>.</p>
         </div>
         <Seg_pu value={view} onChange={setView} options={[
-          { key: "today", label: "Today", badge: actionCount },
           { key: "buy", label: "To buy", badge: below.length + buys.length },
           { key: "sourcing", label: "Sourcing", badge: rfqsAwaiting.length },
           { key: "orders", label: "Orders", badge: overdue.length },
@@ -76,7 +77,6 @@ function Purchase({ readOnly = false }) {
         ]} />
       </div>
 
-      {view === "today" && <TodayBoard_pu s={s} below={below} buys={buys} board={board} overdue={overdue} rfqsAwaiting={rfqsAwaiting} invAlerts={invAlerts} replVal={replVal} projectVal={projectVal} readOnly={readOnly} setView={setView} openOrder={openOrder} raiseFor={raiseFor} setCompareId={setCompareId} setRfqFor={setRfqFor} setPoConfirmed={setPoConfirmed} />}
       {view === "buy" && <ToBuy_pu s={s} below={below} repl={repl} buys={buys} readOnly={readOnly} openOrder={openOrder} raiseFor={raiseFor} setRfqFor={setRfqFor} />}
       {view === "sourcing" && <Sourcing_pu rfqs={s.supplierRfqs} onCompare={setCompareId} onFloat={() => setRfqFor({ orderId: null })} readOnly={readOnly} />}
       {view === "orders" && <Orders_pu s={s} board={board} readOnly={readOnly} openOrder={openOrder} setPoConfirmed={setPoConfirmed} />}
@@ -90,8 +90,109 @@ function Purchase({ readOnly = false }) {
   );
 }
 
-// ---------- Today: the buyer's prioritized action queue ----------
-function TodayBoard_pu({ s, below, buys, board, overdue, rfqsAwaiting, invAlerts, replVal, projectVal, readOnly, setView, openOrder, raiseFor, setCompareId, setRfqFor, setPoConfirmed }) {
+// ---------- Procurement DASHBOARD: spend & supply health + the action queue ----------
+function ProcurementDashboard({ readOnly = false }) {
+  const { useStore, getState, openOrder, replenishmentPlan, projectBuys, openPoBoard, supplierScorecard, invoiceMatch, setPoConfirmed, MSME_DAYS, Card, fmtINR } = window;
+  useStore(s => s.orders); useStore(s => s.pos); useStore(s => s.stock); useStore(s => s.inwards); useStore(s => s.supplierRfqs); useStore(s => s.invoices);
+  const s = getState();
+  const [compareId, setCompareId] = puUseState(null);
+  const [poModal, setPoModal] = puUseState(null);
+  const [rfqFor, setRfqFor] = puUseState(null);
+
+  const repl = replenishmentPlan(s);
+  const below = repl.filter(r => r.below && r.suggestQty > 0);
+  const buys = projectBuys(s);
+  const board = openPoBoard(s);
+  const overdue = board.filter(b => b.overdue || b.lateForJob);
+  const rfqsAwaiting = s.supplierRfqs.filter(r => r.status !== "Awarded" && r.bids.some(b => b.submitted));
+  const invList = (s.invoices || []).map(inv => ({ inv, m: invoiceMatch(inv, s) }));
+  const invAlerts = invList.filter(x => (!x.m.matched || x.m.msmeRisk === "overdue" || x.m.msmeRisk === "due-soon") && x.inv.payStatus !== "Paid");
+  const replVal = below.reduce((a, r) => a + r.value, 0);
+  const projectVal = buys.reduce((a, b) => a + b.value, 0);
+
+  // strategic metrics
+  const openPoVal = board.reduce((a, b) => a + b.value, 0);
+  const committedSpend = s.pos.reduce((a, p) => a + p.items.reduce((x, it) => x + it.qty * (it.rate || 0), 0), 0);
+  const grns = s.inwards || [];
+  const otd = grns.length ? Math.round(grns.filter(i => i.onTime !== false).length / grns.length * 100) : null;
+  const score = supplierScorecard(s);
+  const rated = Object.values(score).filter(x => x.score != null);
+  const avgRating = rated.length ? Math.round(rated.reduce((a, x) => a + x.score, 0) / rated.length) : null;
+  const msmeDue = invList.filter(x => x.inv.msme && x.inv.payStatus !== "Paid" && (x.m.msmeRisk === "overdue" || x.m.msmeRisk === "due-soon"));
+  const msmeDueVal = msmeDue.reduce((a, x) => a + x.inv.amount, 0);
+
+  // PO pipeline split for the bar
+  const poCount = { Ordered: 0, "Partially Received": 0, Received: 0 };
+  s.pos.forEach(p => { poCount[p.status] = (poCount[p.status] || 0) + 1; });
+  const poTotal = s.pos.length || 1;
+  const pct = (n) => (n / poTotal * 100).toFixed(2) + "%";
+
+  // spend by supplier (top 4)
+  const spendBy = {};
+  s.pos.forEach(p => { spendBy[p.supplier] = (spendBy[p.supplier] || 0) + p.items.reduce((x, it) => x + it.qty * (it.rate || 0), 0); });
+  const topSpend = Object.entries(spendBy).map(([supplier, v]) => ({ supplier, v })).sort((a, b) => b.v - a.v).slice(0, 4);
+  const maxSpend = topSpend.length ? topSpend[0].v : 1;
+
+  const goDesk = (tab) => { window.__deskTab = tab; if (window.__goNav) window.__goNav("purchase"); };
+  const raiseFor = (cfg) => setPoModal(cfg);
+  const Lg = ({ c, t }) => <span className="text-xs"><span className="inline-block w-2.5 h-2.5 rounded-sm align-middle mr-1.5" style={{ background: c }}></span>{t}</span>;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Procurement dashboard</h1>
+        <p className="text-sm text-muted-foreground max-w-2xl">Where the buyer starts the day — the health of spend and supply at a glance, then the prioritised queue of what needs action. Click anything to jump to the desk.</p>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Kpi_pu label="Open PO value" value={fmtINR(openPoVal)} hint={`${board.length} in transit`} />
+        <Kpi_pu label="Committed spend" value={fmtINR(committedSpend)} hint="All POs to date" />
+        <Kpi_pu label="On-time delivery" value={otd != null ? otd + "%" : "—"} tone={otd != null && otd < 85 ? "warn" : "good"} hint="From goods inward" />
+        <Kpi_pu label="Avg supplier score" value={avgRating != null ? avgRating : "—"} tone={avgRating != null && avgRating < 80 ? "warn" : "good"} hint="OTD 60% · quality 40%" />
+        <Kpi_pu label="POs overdue" value={overdue.length} tone={overdue.length ? "bad" : "good"} hint={overdue.length ? "Needs expediting" : "On track"} />
+        <Kpi_pu label="MSME due" value={msmeDue.length} tone={msmeDue.length ? "bad" : "good"} hint={msmeDue.length ? `${fmtINR(msmeDueVal)} ≤ ${MSME_DAYS}d` : "Clear"} />
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Card title="Purchase-order pipeline" action={<span className="text-xs text-muted-foreground">{s.pos.length} POs</span>}>
+          <div className="flex h-9 rounded-lg overflow-hidden border border-border">
+            <div style={{ width: pct(poCount.Ordered), background: "var(--status-active)" }} title={`Ordered ${poCount.Ordered}`}></div>
+            <div style={{ width: pct(poCount["Partially Received"]), background: "var(--amber)" }} title={`Partial ${poCount["Partially Received"]}`}></div>
+            <div style={{ width: pct(poCount.Received), background: "var(--status-done)" }} title={`Received ${poCount.Received}`}></div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
+            <Lg c="var(--status-active)" t={`Ordered · ${poCount.Ordered}`} />
+            <Lg c="var(--amber)" t={`Partial · ${poCount["Partially Received"]}`} />
+            <Lg c="var(--status-done)" t={`Received · ${poCount.Received}`} />
+          </div>
+          <button onClick={() => goDesk("orders")} className="mt-4 text-xs font-medium text-primary hover:underline">Open the orders board →</button>
+        </Card>
+        <Card title="Spend by supplier" action={<span className="text-xs text-muted-foreground">top {topSpend.length}</span>}>
+          {topSpend.length === 0 ? <p className="text-sm text-muted-foreground">No POs raised yet.</p> : (
+            <div className="space-y-2.5">
+              {topSpend.map(r => (
+                <div key={r.supplier}>
+                  <div className="flex items-center justify-between text-xs mb-1"><span className="truncate">{r.supplier}</span><span className="num text-muted-foreground">{fmtINR(r.v)}</span></div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden"><div style={{ width: (r.v / maxSpend * 100) + "%", background: "var(--primary)" }} className="h-full"></div></div>
+                </div>
+              ))}
+            </div>
+          )}
+          <button onClick={() => goDesk("suppliers")} className="mt-4 text-xs font-medium text-primary hover:underline">See the supplier scorecard →</button>
+        </Card>
+      </div>
+
+      <TodayBoard_pu hideKpis s={s} below={below} buys={buys} board={board} overdue={overdue} rfqsAwaiting={rfqsAwaiting} invAlerts={invAlerts} replVal={replVal} projectVal={projectVal} readOnly={readOnly} setView={goDesk} openOrder={openOrder} raiseFor={raiseFor} setCompareId={setCompareId} setRfqFor={setRfqFor} setPoConfirmed={setPoConfirmed} />
+
+      {compareId && <CompareModal rfqId={compareId} onClose={() => setCompareId(null)} readOnly={readOnly} />}
+      {rfqFor && <NewRFQModal orderId={rfqFor.orderId} onClose={() => setRfqFor(null)} />}
+      {poModal && <RaisePOModal {...poModal} onClose={() => setPoModal(null)} />}
+    </div>
+  );
+}
+
+// ---------- The buyer's prioritized action queue (used by the dashboard) ----------
+function TodayBoard_pu({ s, below, buys, board, overdue, rfqsAwaiting, invAlerts, replVal, projectVal, readOnly, setView, openOrder, raiseFor, setCompareId, setRfqFor, setPoConfirmed, hideKpis }) {
   const { Card, Pill, Button, Empty, fmtINR, fmtNum, fmtDate, materialMeta } = window;
 
   // group replenishment by supplier (one PO per supplier)
@@ -116,13 +217,15 @@ function TodayBoard_pu({ s, below, buys, board, overdue, rfqsAwaiting, invAlerts
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Kpi_pu label="Below reorder" value={below.length} tone={below.length ? "warn" : "good"} hint={below.length ? `${fmtINR(replVal)} to top up` : "Stock healthy"} />
-        <Kpi_pu label="Job shortfalls" value={buys.length} tone={buys.length ? "warn" : "good"} hint={buys.length ? `${fmtINR(projectVal)} to buy` : "All covered"} />
-        <Kpi_pu label="Bids to award" value={rfqsAwaiting.length} tone={rfqsAwaiting.length ? "warn" : "good"} hint={rfqsAwaiting.length ? "Quotes in" : "None waiting"} />
-        <Kpi_pu label="POs overdue" value={overdue.length} tone={overdue.length ? "bad" : "good"} hint={overdue.length ? "Chase suppliers" : "On track"} />
-        <Kpi_pu label="Invoice alerts" value={invAlerts.length} tone={invAlerts.length ? "bad" : "good"} hint={invAlerts.length ? "Match / MSME" : "Clear"} />
-      </div>
+      {!hideKpis && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <Kpi_pu label="Below reorder" value={below.length} tone={below.length ? "warn" : "good"} hint={below.length ? `${fmtINR(replVal)} to top up` : "Stock healthy"} />
+          <Kpi_pu label="Job shortfalls" value={buys.length} tone={buys.length ? "warn" : "good"} hint={buys.length ? `${fmtINR(projectVal)} to buy` : "All covered"} />
+          <Kpi_pu label="Bids to award" value={rfqsAwaiting.length} tone={rfqsAwaiting.length ? "warn" : "good"} hint={rfqsAwaiting.length ? "Quotes in" : "None waiting"} />
+          <Kpi_pu label="POs overdue" value={overdue.length} tone={overdue.length ? "bad" : "good"} hint={overdue.length ? "Chase suppliers" : "On track"} />
+          <Kpi_pu label="Invoice alerts" value={invAlerts.length} tone={invAlerts.length ? "bad" : "good"} hint={invAlerts.length ? "Match / MSME" : "Clear"} />
+        </div>
+      )}
 
       <Card title="Action queue" action={<span className="text-xs text-muted-foreground">Highest-leverage first</span>}>
         {empty ? <Empty title="Nothing needs you right now" hint="No shortfalls, overdue POs, bids to award or invoice exceptions. Nice." /> : (
@@ -679,4 +782,4 @@ function CompareModal({ rfqId, onClose, readOnly }) {
   );
 }
 
-Object.assign(window, { Purchase, NewRFQModal, CompareModal });
+Object.assign(window, { Purchase, ProcurementDashboard, NewRFQModal, CompareModal });

@@ -125,9 +125,9 @@ function getRoleNav(role) {
       { key: "schedule", label: "Schedule & load", icon: ICONS.schedule },
     ];
     case "Procurement": return [
+      { key: "dashboard", label: "Dashboard", icon: ICONS.dashboard },
       { key: "purchase", label: "Procurement desk", icon: ICONS.purchase },
       { key: "costing", label: "Costing", icon: ICONS.costing },
-      { key: "orders", label: "Orders", icon: ICONS.orders },
     ];
     case "Inventory": return [
       { key: "inward", label: "Inward + QC", icon: ICONS.records },
