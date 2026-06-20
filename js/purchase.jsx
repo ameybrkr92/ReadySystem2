@@ -35,13 +35,22 @@ function RiskPill_pu({ risk }) {
 //   Today (what needs me now) → To buy (demand) → Sourcing (RFQ) → Orders (track) → Bills (pay) → Suppliers
 // One landing answers "what do I do today"; one shared RaisePOModal is the single
 // way to cut a PO, whether it's a stock top-up or a job shortfall.
-function Purchase({ readOnly = false }) {
+// each Procurement sidebar item renders one of these as a standalone page
+const VIEW_META = {
+  buy: ["Buy plan", "Stock replenishment and job shortfalls in one list — raise a PO or float an RFQ."],
+  sourcing: ["Sourcing", "Float RFQs, compare supplier bids side by side, and award — awarding raises the PO automatically."],
+  orders: ["Purchase orders", "Every PO — expedite the open ones (ETA vs need-by), browse the full register. Receipt updates automatically from Stores."],
+  bills: ["Bills", "Supplier invoices, 3-way matched against the PO and GRN, with the MSME payment clock."],
+  suppliers: ["Suppliers", "Scorecard — on-time delivery and quality, straight from the Quality module's own records."],
+};
+
+function Purchase({ readOnly = false, view: forcedView }) {
   const { useStore, getState, openOrder, replenishmentPlan, projectBuys, openPoBoard, setPoConfirmed, invoiceMatch, materialMeta } = window;
   useStore(s => s.orders); useStore(s => s.pos); useStore(s => s.stock); useStore(s => s.inwards); useStore(s => s.supplierRfqs); useStore(s => s.invoices);
   const s = getState();
-  // the dashboard can deep-link a specific tab via window.__deskTab
-  const [view, setView] = puUseState(window.__deskTab || "buy");
-  puUseEffect(() => { window.__deskTab = null; }, []);
+  // sidebar drives the view via forcedView; Director's combined desk uses the Seg control
+  const [view, setView] = puUseState(forcedView || "buy");
+  puUseEffect(() => { if (forcedView) setView(forcedView); }, [forcedView]);
   const [compareId, setCompareId] = puUseState(null);
   const [poModal, setPoModal] = puUseState(null);   // { title, woNo, supplier, items }
   const [rfqFor, setRfqFor] = puUseState(null);      // { orderId } | null
@@ -63,19 +72,26 @@ function Purchase({ readOnly = false }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+      {forcedView ? (
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Procurement desk</h1>
-          <p className="text-sm text-muted-foreground max-w-2xl">Where the buying gets done. Left to right — see <b className="text-foreground">what to buy</b>, <b className="text-foreground">source</b> it, track the <b className="text-foreground">orders</b>, clear the <b className="text-foreground">bills</b>, and rate <b className="text-foreground">suppliers</b>.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{(VIEW_META[forcedView] || ["Procurement"])[0]}</h1>
+          <p className="text-sm text-muted-foreground max-w-2xl">{(VIEW_META[forcedView] || [, ""])[1]}</p>
         </div>
-        <Seg_pu value={view} onChange={setView} options={[
-          { key: "buy", label: "To buy", badge: below.length + buys.length },
-          { key: "sourcing", label: "Sourcing", badge: rfqsAwaiting.length },
-          { key: "orders", label: "Orders", badge: overdue.length },
-          { key: "bills", label: "Bills", badge: invAlerts.length },
-          { key: "suppliers", label: "Suppliers" },
-        ]} />
-      </div>
+      ) : (
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Procurement desk</h1>
+            <p className="text-sm text-muted-foreground max-w-2xl">Where the buying gets done. Left to right — see <b className="text-foreground">what to buy</b>, <b className="text-foreground">source</b> it, track the <b className="text-foreground">orders</b>, clear the <b className="text-foreground">bills</b>, and rate <b className="text-foreground">suppliers</b>.</p>
+          </div>
+          <Seg_pu value={view} onChange={setView} options={[
+            { key: "buy", label: "To buy", badge: below.length + buys.length },
+            { key: "sourcing", label: "Sourcing", badge: rfqsAwaiting.length },
+            { key: "orders", label: "Orders", badge: overdue.length },
+            { key: "bills", label: "Bills", badge: invAlerts.length },
+            { key: "suppliers", label: "Suppliers" },
+          ]} />
+        </div>
+      )}
 
       {view === "buy" && <ToBuy_pu s={s} below={below} repl={repl} buys={buys} readOnly={readOnly} openOrder={openOrder} raiseFor={raiseFor} setRfqFor={setRfqFor} />}
       {view === "sourcing" && <Sourcing_pu rfqs={s.supplierRfqs} onCompare={setCompareId} onFloat={() => setRfqFor({ orderId: null })} readOnly={readOnly} />}
@@ -145,7 +161,7 @@ function ProcurementDashboard({ readOnly = false }) {
   const topSpend = Object.entries(spendBy).map(([supplier, v]) => ({ supplier, v })).sort((a, b) => b.v - a.v).slice(0, 4);
   const maxSpend = topSpend.length ? topSpend[0].v : 1;
 
-  const goDesk = (tab) => { window.__deskTab = tab; if (window.__goNav) window.__goNav("purchase"); };
+  const goDesk = (tab) => { if (window.__goNav) window.__goNav(tab); };   // sidebar keys == view keys
   const raiseFor = (cfg) => setPoModal(cfg);
   const Lg = ({ c, t }) => <span className="text-xs"><span className="inline-block w-2.5 h-2.5 rounded-sm align-middle mr-1.5" style={{ background: c }}></span>{t}</span>;
 

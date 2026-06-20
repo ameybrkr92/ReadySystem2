@@ -103,6 +103,9 @@ const ICONS = {
   release: <Icon path="M4 5h4v14H4zM10 5h4v9h-4zM16 5h4v6h-4z" />,
   schedule: <Icon path="M8 7V3m8 4V3M4 11h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z" />,
   kpi: <Icon path="M9 19V13m4 6V5m4 14v-8M5 19h14a1 1 0 001-1V6a1 1 0 00-1-1H5a1 1 0 00-1 1v12a1 1 0 001 1z" />,
+  sourcing: <Icon path="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />,
+  bills: <Icon path="M9 8h6M9 12h6m-6 4h4M6 21l1.5-1 1.5 1 1.5-1 1.5 1 1.5-1 1.5 1V5a2 2 0 00-2-2H8a2 2 0 00-2 2v16z" />,
+  suppliers: <Icon path="M9 17a2 2 0 11-4 0 2 2 0 014 0zm11 0a2 2 0 11-4 0 2 2 0 014 0zM13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10h2m11 0H9m6 0h1m0 0V9h3l3 4v3h-2" />,
 };
 
 function getRoleNav(role) {
@@ -126,8 +129,11 @@ function getRoleNav(role) {
     ];
     case "Procurement": return [
       { key: "dashboard", label: "Dashboard", icon: ICONS.dashboard },
-      { key: "orders", label: "Work orders", icon: ICONS.orders },
-      { key: "purchase", label: "Procurement desk", icon: ICONS.purchase },
+      { key: "buy", label: "Buy plan", icon: ICONS.purchase },
+      { key: "sourcing", label: "Sourcing", icon: ICONS.sourcing },
+      { key: "orders", label: "Purchase orders", icon: ICONS.records },
+      { key: "bills", label: "Bills", icon: ICONS.bills },
+      { key: "suppliers", label: "Suppliers", icon: ICONS.suppliers },
       { key: "costing", label: "Costing", icon: ICONS.costing },
     ];
     case "Inventory": return [
