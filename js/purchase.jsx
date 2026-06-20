@@ -121,6 +121,18 @@ function ProcurementDashboard({ readOnly = false }) {
   const msmeDue = invList.filter(x => x.inv.msme && x.inv.payStatus !== "Paid" && (x.m.msmeRisk === "overdue" || x.m.msmeRisk === "due-soon"));
   const msmeDueVal = msmeDue.reduce((a, x) => a + x.inv.amount, 0);
 
+  // RFQ savings — for each awarded RFQ, highest comparable bid total minus the awarded total
+  let rfqSavings = 0, awardedRfqs = 0;
+  s.supplierRfqs.filter(r => r.status === "Awarded").forEach(r => {
+    const awarded = r.bids.find(b => b.supplier === r.awardedSupplier);
+    if (!awarded) return;
+    awardedRfqs++;
+    const totalOf = (b) => r.items.reduce((a, it, i) => a + (it.qty || 0) * ((b.rates && b.rates[i]) || 0), 0);
+    const sub = r.bids.filter(b => b.submitted);
+    if (sub.length >= 2) rfqSavings += Math.max(0, Math.max(...sub.map(totalOf)) - totalOf(awarded));
+  });
+  const openRfqs = s.supplierRfqs.filter(r => r.status !== "Awarded").length;
+
   // PO pipeline split for the bar
   const poCount = { Ordered: 0, "Partially Received": 0, Received: 0 };
   s.pos.forEach(p => { poCount[p.status] = (poCount[p.status] || 0) + 1; });
@@ -144,11 +156,13 @@ function ProcurementDashboard({ readOnly = false }) {
         <p className="text-sm text-muted-foreground max-w-2xl">Where the buyer starts the day — the health of spend and supply at a glance, then the prioritised queue of what needs action. Click anything to jump to the desk.</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Kpi_pu label="Open PO value" value={fmtINR(openPoVal)} hint={`${board.length} in transit`} />
         <Kpi_pu label="Committed spend" value={fmtINR(committedSpend)} hint="All POs to date" />
+        <Kpi_pu label="RFQ savings" value={fmtINR(rfqSavings)} tone={rfqSavings > 0 ? "good" : undefined} hint={awardedRfqs ? `from ${awardedRfqs} award${awardedRfqs > 1 ? "s" : ""}` : "vs highest bid"} />
         <Kpi_pu label="On-time delivery" value={otd != null ? otd + "%" : "—"} tone={otd != null && otd < 85 ? "warn" : "good"} hint="From goods inward" />
         <Kpi_pu label="Avg supplier score" value={avgRating != null ? avgRating : "—"} tone={avgRating != null && avgRating < 80 ? "warn" : "good"} hint="OTD 60% · quality 40%" />
+        <Kpi_pu label="Open RFQs" value={openRfqs} hint={openRfqs ? "sourcing now" : "none open"} />
         <Kpi_pu label="POs overdue" value={overdue.length} tone={overdue.length ? "bad" : "good"} hint={overdue.length ? "Needs expediting" : "On track"} />
         <Kpi_pu label="MSME due" value={msmeDue.length} tone={msmeDue.length ? "bad" : "good"} hint={msmeDue.length ? `${fmtINR(msmeDueVal)} ≤ ${MSME_DAYS}d` : "Clear"} />
       </div>
