@@ -131,7 +131,7 @@ function getRoleNav(role) {
       { key: "dashboard", label: "Dashboard", icon: ICONS.dashboard },
       { key: "costing", label: "Quoting", icon: ICONS.costing },
       { key: "buy", label: "Buy plan", icon: ICONS.purchase },
-      { key: "sourcing", label: "Sourcing", icon: ICONS.sourcing },
+      { key: "sourcing", label: "Quotes", icon: ICONS.sourcing },
       { key: "orders", label: "Purchase orders", icon: ICONS.records },
       { key: "bills", label: "Bills", icon: ICONS.bills },
       { key: "suppliers", label: "Suppliers", icon: ICONS.suppliers },

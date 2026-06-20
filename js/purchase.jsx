@@ -38,7 +38,7 @@ function RiskPill_pu({ risk }) {
 // each Procurement sidebar item renders one of these as a standalone page
 const VIEW_META = {
   buy: ["Buy plan", "Stock replenishment and job shortfalls in one list — raise a PO or float an RFQ."],
-  sourcing: ["Sourcing", "Float RFQs, compare supplier bids side by side, and award — awarding raises the PO automatically."],
+  sourcing: ["Quotes", "RFQs floated from a job in Buy plan — compare supplier bids side by side and award. Awarding raises the PO automatically."],
   orders: ["Purchase orders", "Every PO — expedite the open ones (ETA vs need-by), browse the full register. Receipt updates automatically from Stores."],
   bills: ["Bills", "Supplier invoices, 3-way matched against the PO and GRN, with the MSME payment clock."],
   suppliers: ["Suppliers", "Scorecard — on-time delivery and quality, straight from the Quality module's own records."],
@@ -85,7 +85,7 @@ function Purchase({ readOnly = false, view: forcedView }) {
           </div>
           <Seg_pu value={view} onChange={setView} options={[
             { key: "buy", label: "To buy", badge: below.length + buys.length },
-            { key: "sourcing", label: "Sourcing", badge: rfqsAwaiting.length },
+            { key: "sourcing", label: "Quotes", badge: rfqsAwaiting.length },
             { key: "orders", label: "Orders", badge: overdue.length },
             { key: "bills", label: "Bills", badge: invAlerts.length },
             { key: "suppliers", label: "Suppliers" },
@@ -94,7 +94,7 @@ function Purchase({ readOnly = false, view: forcedView }) {
       )}
 
       {view === "buy" && <ToBuy_pu s={s} below={below} repl={repl} buys={buys} readOnly={readOnly} openOrder={openOrder} raiseFor={raiseFor} setRfqFor={setRfqFor} />}
-      {view === "sourcing" && <Sourcing_pu rfqs={s.supplierRfqs} onCompare={setCompareId} onFloat={() => setRfqFor({ orderId: null })} readOnly={readOnly} />}
+      {view === "sourcing" && <Sourcing_pu rfqs={s.supplierRfqs} onCompare={setCompareId} />}
       {view === "orders" && <Orders_pu s={s} board={board} readOnly={readOnly} openOrder={openOrder} setPoConfirmed={setPoConfirmed} />}
       {view === "bills" && <Invoices_pu s={s} readOnly={readOnly} />}
       {view === "suppliers" && <Suppliers_pu s={s} />}
@@ -359,15 +359,9 @@ function RaisePOModal({ title, woNo, supplier: initSupplier, items: initItems, o
   );
 }
 
-// ---------- Sourcing: float + compare/award RFQs ----------
-function Sourcing_pu({ rfqs, onCompare, onFloat, readOnly }) {
-  const { Button } = window;
-  return (
-    <div className="space-y-3">
-      {!readOnly && <div className="flex justify-end"><Button onClick={onFloat}>Float new RFQ →</Button></div>}
-      <Quotes_pu rfqs={rfqs} onCompare={onCompare} />
-    </div>
-  );
+// ---------- Quotes: the RFQ desk — compare & award (floated from Buy plan) ----------
+function Sourcing_pu({ rfqs, onCompare }) {
+  return <Quotes_pu rfqs={rfqs} onCompare={onCompare} />;
 }
 
 // ---------- Orders: expedite open POs + full register, in one place ----------
@@ -514,8 +508,8 @@ function Expediting_pu({ board, readOnly, openOrder, setPoConfirmed, orders }) {
 function Quotes_pu({ rfqs, onCompare }) {
   const { Card, Pill, Table, Empty } = window;
   return (
-    <Card title="Supplier quotes (RFQs)" action={<span className="text-xs text-muted-foreground">Floated per-job from the workspace · awarding raises the PO</span>}>
-      {rfqs.length === 0 ? <Empty title="No open RFQs" hint="Quotes are floated from a job's Procurement tab when material is multi-source and above the quote threshold." /> : (
+    <Card title="Request for quotation" action={<span className="text-xs text-muted-foreground">Floated from Buy plan · awarding raises the PO</span>}>
+      {rfqs.length === 0 ? <Empty title="No RFQs yet" hint="Float one from Buy plan (or a job's Procurement tab) when material is multi-source and above the quote threshold. It lands here to compare & award." /> : (
         <Table headers={["RFQ No", "W/O", "Items", "Bids in", "Status", ""]}>
           {rfqs.map(r => {
             const submitted = r.bids.filter(b => b.submitted).length;
