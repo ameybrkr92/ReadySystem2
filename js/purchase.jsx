@@ -37,20 +37,33 @@ function RiskPill_pu({ risk }) {
 // way to cut a PO, whether it's a stock top-up or a job shortfall.
 // each Procurement sidebar item renders one of these as a standalone page
 const VIEW_META = {
-  buy: ["Buy plan", "Stock replenishment and job shortfalls in one list — raise a PO or float an RFQ."],
-  sourcing: ["Quotes", "RFQs floated from a job in Buy plan — compare supplier bids side by side and award. Awarding raises the PO automatically."],
+  buy: ["To buy", "Stock replenishment and job shortfalls in one list — raise a PO or float an RFQ."],
+  rfq: ["RFQ", "Supplier RFQs floated from To buy — compare bids side by side and award. Awarding raises the PO automatically. (Supplier price in, not the client quote.)"],
   orders: ["Purchase orders", "Every PO — expedite the open ones (ETA vs need-by), browse the full register. Receipt updates automatically from Stores."],
   bills: ["Bills", "Supplier invoices, 3-way matched against the PO and GRN, with the MSME payment clock."],
   suppliers: ["Suppliers", "Scorecard — on-time delivery and quality, straight from the Quality module's own records."],
+};
+
+// Sourcing groups the two buy-side steps — demand (To buy) and supplier bids (RFQ) —
+// into one page, since they're a single flow: requisition → float RFQ → award → PO.
+// (The customer-facing "Client quotes" page is a separate, sell-side concern.)
+const GROUPS = {
+  sourcing: {
+    title: "Sourcing",
+    blurb: "From demand to award in one place — see what to buy, float a supplier RFQ, then compare bids and award (which raises the PO).",
+    tabs: ["buy", "rfq"],
+  },
 };
 
 function Purchase({ readOnly = false, view: forcedView }) {
   const { useStore, getState, openOrder, replenishmentPlan, projectBuys, openPoBoard, setPoConfirmed, invoiceMatch, materialMeta } = window;
   useStore(s => s.orders); useStore(s => s.pos); useStore(s => s.stock); useStore(s => s.inwards); useStore(s => s.supplierRfqs); useStore(s => s.invoices);
   const s = getState();
-  // sidebar drives the view via forcedView; Director's combined desk uses the Seg control
-  const [view, setView] = puUseState(forcedView || "buy");
-  puUseEffect(() => { if (forcedView) setView(forcedView); }, [forcedView]);
+  // sidebar drives the view via forcedView; Director's combined desk uses the Seg control.
+  // a forcedView can also be a GROUP (e.g. "sourcing") that shows its own sub-tabs.
+  const group = GROUPS[forcedView];
+  const [view, setView] = puUseState(group ? group.tabs[0] : (forcedView || "buy"));
+  puUseEffect(() => { if (group) setView(group.tabs[0]); else if (forcedView) setView(forcedView); }, [forcedView]);
   const [compareId, setCompareId] = puUseState(null);
   const [poModal, setPoModal] = puUseState(null);   // { title, woNo, supplier, items }
   const [rfqFor, setRfqFor] = puUseState(null);      // { orderId } | null
@@ -72,7 +85,18 @@ function Purchase({ readOnly = false, view: forcedView }) {
 
   return (
     <div className="space-y-6">
-      {forcedView ? (
+      {group ? (
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">{group.title}</h1>
+            <p className="text-sm text-muted-foreground max-w-2xl">{group.blurb}</p>
+          </div>
+          <Seg_pu value={view} onChange={setView} options={group.tabs.map(t => ({
+            key: t, label: VIEW_META[t][0],
+            badge: t === "buy" ? below.length + buys.length : t === "rfq" ? rfqsAwaiting.length : undefined,
+          }))} />
+        </div>
+      ) : forcedView ? (
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{(VIEW_META[forcedView] || ["Procurement"])[0]}</h1>
           <p className="text-sm text-muted-foreground max-w-2xl">{(VIEW_META[forcedView] || [, ""])[1]}</p>
@@ -85,7 +109,7 @@ function Purchase({ readOnly = false, view: forcedView }) {
           </div>
           <Seg_pu value={view} onChange={setView} options={[
             { key: "buy", label: "To buy", badge: below.length + buys.length },
-            { key: "sourcing", label: "Quotes", badge: rfqsAwaiting.length },
+            { key: "rfq", label: "RFQ", badge: rfqsAwaiting.length },
             { key: "orders", label: "Orders", badge: overdue.length },
             { key: "bills", label: "Bills", badge: invAlerts.length },
             { key: "suppliers", label: "Suppliers" },
@@ -94,7 +118,7 @@ function Purchase({ readOnly = false, view: forcedView }) {
       )}
 
       {view === "buy" && <ToBuy_pu s={s} below={below} repl={repl} buys={buys} readOnly={readOnly} openOrder={openOrder} raiseFor={raiseFor} setRfqFor={setRfqFor} />}
-      {view === "sourcing" && <Sourcing_pu rfqs={s.supplierRfqs} onCompare={setCompareId} />}
+      {view === "rfq" && <Sourcing_pu rfqs={s.supplierRfqs} onCompare={setCompareId} />}
       {view === "orders" && <Orders_pu s={s} board={board} readOnly={readOnly} openOrder={openOrder} setPoConfirmed={setPoConfirmed} />}
       {view === "bills" && <Invoices_pu s={s} readOnly={readOnly} />}
       {view === "suppliers" && <Suppliers_pu s={s} />}
@@ -508,8 +532,8 @@ function Expediting_pu({ board, readOnly, openOrder, setPoConfirmed, orders }) {
 function Quotes_pu({ rfqs, onCompare }) {
   const { Card, Pill, Table, Empty } = window;
   return (
-    <Card title="Request for quotation" action={<span className="text-xs text-muted-foreground">Floated from Buy plan · awarding raises the PO</span>}>
-      {rfqs.length === 0 ? <Empty title="No RFQs yet" hint="Float one from Buy plan (or a job's Procurement tab) when material is multi-source and above the quote threshold. It lands here to compare & award." /> : (
+    <Card title="Request for quotation" action={<span className="text-xs text-muted-foreground">Floated from To buy · awarding raises the PO</span>}>
+      {rfqs.length === 0 ? <Empty title="No RFQs yet" hint="Float one from To buy (or a job's Procurement tab) when material is multi-source and above the quote threshold. It lands here to compare & award." /> : (
         <Table headers={["RFQ No", "W/O", "Items", "Bids in", "Status", ""]}>
           {rfqs.map(r => {
             const submitted = r.bids.filter(b => b.submitted).length;

@@ -9,7 +9,7 @@ function Costing({ readOnly = false }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Quoting</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Client quotes</h1>
         <p className="text-sm text-muted-foreground">Price each job and send the <b className="text-foreground">client</b> a quote. Open one to run the costing engine — material from the harness, labour from build-time, your margin → the quote total. (This is the price to the customer, not supplier cost.)</p>
       </div>
 

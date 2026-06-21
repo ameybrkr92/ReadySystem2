@@ -23,7 +23,7 @@ function renderModule(role, key) {
   if (role === "Procurement") {
     if (key === "dashboard") return <ProcurementDashboard />;
     if (key === "costing") return <Costing />;
-    if (["buy", "sourcing", "orders", "bills", "suppliers"].includes(key)) return <Purchase view={key} />;
+    if (["sourcing", "orders", "bills", "suppliers"].includes(key)) return <Purchase view={key} />;
     return <ProcurementDashboard />;
   }
   if (role === "Inventory") {

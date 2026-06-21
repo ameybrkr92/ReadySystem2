@@ -116,7 +116,7 @@ function getRoleNav(role) {
       { key: "projects", label: "Projects", icon: ICONS.project },
       { key: "release", label: "Release board", icon: ICONS.release },
       { key: "purchase", label: "Purchase", icon: ICONS.purchase },
-      { key: "costing", label: "Quoting", icon: ICONS.costing },
+      { key: "costing", label: "Client quotes", icon: ICONS.costing },
       { key: "inventory", label: "Inventory", icon: ICONS.stores },
       { key: "quality-kpi", label: "Quality KPIs", icon: ICONS.kpi },
       { key: "quality", label: "Quality", icon: ICONS.quality },
@@ -129,9 +129,8 @@ function getRoleNav(role) {
     ];
     case "Procurement": return [
       { key: "dashboard", label: "Dashboard", icon: ICONS.dashboard },
-      { key: "costing", label: "Quoting", icon: ICONS.costing },
-      { key: "buy", label: "Buy plan", icon: ICONS.purchase },
-      { key: "sourcing", label: "Quotes", icon: ICONS.sourcing },
+      { key: "costing", label: "Client quotes", icon: ICONS.costing },
+      { key: "sourcing", label: "Sourcing", icon: ICONS.sourcing },
       { key: "orders", label: "Purchase orders", icon: ICONS.records },
       { key: "bills", label: "Bills", icon: ICONS.bills },
       { key: "suppliers", label: "Suppliers", icon: ICONS.suppliers },
