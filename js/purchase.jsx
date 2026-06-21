@@ -56,7 +56,7 @@ const GROUPS = {
 };
 
 function Purchase({ readOnly = false, view: forcedView }) {
-  const { useStore, getState, openOrder, replenishmentPlan, projectBuys, openPoBoard, setPoConfirmed, invoiceMatch, materialMeta } = window;
+  const { useStore, getState, openOrder, replenishmentPlan, projectBuys, openPoBoard, setPoConfirmed, invoiceMatch, materialMeta, fmtINR } = window;
   useStore(s => s.orders); useStore(s => s.pos); useStore(s => s.stock); useStore(s => s.inwards); useStore(s => s.supplierRfqs); useStore(s => s.invoices);
   const s = getState();
   // sidebar drives the view via forcedView; Director's combined desk uses the Seg control.
@@ -76,6 +76,7 @@ function Purchase({ readOnly = false, view: forcedView }) {
   const rfqsAwaiting = s.supplierRfqs.filter(r => r.status !== "Awarded" && r.bids.some(b => b.submitted));
   const invList = (s.invoices || []).map(inv => ({ inv, m: invoiceMatch(inv, s) }));
   const invAlerts = invList.filter(x => (!x.m.matched || x.m.msmeRisk === "overdue" || x.m.msmeRisk === "due-soon") && x.inv.payStatus !== "Paid");
+  const openRfqCount = s.supplierRfqs.filter(r => r.status !== "Awarded").length;
   const projectVal = buys.reduce((a, b) => a + b.value, 0);
   const replVal = below.reduce((a, r) => a + r.value, 0);
   const actionCount = below.length + buys.length + rfqsAwaiting.length + overdue.length + invAlerts.length;
@@ -117,8 +118,17 @@ function Purchase({ readOnly = false, view: forcedView }) {
         </div>
       )}
 
+      {group && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Kpi_pu label="To commit" value={fmtINR(replVal + projectVal)} hint={`${below.length + buys.length} line${below.length + buys.length !== 1 ? "s" : ""} to raise`} />
+          <Kpi_pu label="Jobs short" value={buys.length} tone={buys.length ? "warn" : "good"} hint={buys.length ? "material missing" : "all covered"} />
+          <Kpi_pu label="Open RFQs" value={openRfqCount} hint={openRfqCount ? "out to suppliers" : "none open"} />
+          <Kpi_pu label="Bids to award" value={rfqsAwaiting.length} tone={rfqsAwaiting.length ? "warn" : "good"} hint={rfqsAwaiting.length ? "ready to compare" : "none waiting"} />
+        </div>
+      )}
+
       {view === "buy" && <ToBuy_pu s={s} below={below} repl={repl} buys={buys} readOnly={readOnly} openOrder={openOrder} raiseFor={raiseFor} setRfqFor={setRfqFor} />}
-      {view === "rfq" && <Sourcing_pu rfqs={s.supplierRfqs} onCompare={setCompareId} />}
+      {view === "rfq" && <Sourcing_pu rfqs={s.supplierRfqs} onCompare={setCompareId} readOnly={readOnly} />}
       {view === "orders" && <Orders_pu s={s} board={board} readOnly={readOnly} openOrder={openOrder} setPoConfirmed={setPoConfirmed} />}
       {view === "bills" && <Invoices_pu s={s} readOnly={readOnly} />}
       {view === "suppliers" && <Suppliers_pu s={s} />}
@@ -384,8 +394,8 @@ function RaisePOModal({ title, woNo, supplier: initSupplier, items: initItems, o
 }
 
 // ---------- Quotes: the RFQ desk — compare & award (floated from Buy plan) ----------
-function Sourcing_pu({ rfqs, onCompare }) {
-  return <Quotes_pu rfqs={rfqs} onCompare={onCompare} />;
+function Sourcing_pu({ rfqs, onCompare, readOnly }) {
+  return <Quotes_pu rfqs={rfqs} onCompare={onCompare} readOnly={readOnly} />;
 }
 
 // ---------- Orders: expedite open POs + full register, in one place ----------
@@ -402,22 +412,82 @@ function Orders_pu({ s, board, readOnly, openOrder, setPoConfirmed }) {
 // To buy — unified demand: stock replenishment AND job shortfalls, each row
 // raising a PO (or floating an RFQ) through the single shared modal.
 function ToBuy_pu({ s, below, repl, buys, readOnly, openOrder, raiseFor, setRfqFor }) {
-  const { Card, Pill, Button, Table, Empty, fmtINR, fmtNum } = window;
+  const { Card, Pill, Button, Table, Empty, fmtINR, fmtNum, fmtDate, materialMeta, rateOf } = window;
   const healthy = repl.filter(r => !r.below);
   const bySupplier = {};
   below.forEach(r => { (bySupplier[r.supplier] = bySupplier[r.supplier] || []).push(r); });
 
+  // Urgency: rank a shortfall by the job's need-by date and whether the supplier
+  // lead time can still make it. lateForJob = ordering today still misses the date.
+  const now = Date.now();
+  const rank = { overdue: 0, "at-risk": 1, "due-soon": 2, "on-track": 3 };
+  const enrichedBuys = buys.map(b => {
+    const needMs = b.order.dueDate ? new Date(b.order.dueDate).getTime() : null;
+    const daysToNeed = needMs != null ? Math.round((needMs - now) / 86400000) : null;
+    const maxLead = Math.max(0, ...b.rows.map(r => materialMeta(r.description).leadDays || 7));
+    const overdue = needMs != null && needMs < now;
+    const lateForJob = !overdue && daysToNeed != null && daysToNeed < maxLead;
+    const risk = overdue ? "overdue" : lateForJob ? "at-risk" : (daysToNeed != null && daysToNeed <= 7) ? "due-soon" : "on-track";
+    return { ...b, needBy: b.order.dueDate, daysToNeed, maxLead, lateForJob, risk };
+  }).sort((a, c) => (rank[a.risk] - rank[c.risk]) || (new Date(a.needBy || 0) - new Date(c.needBy || 0)));
+
+  // Demand consolidation: the same preferred supplier feeding 2+ sources (jobs and/or
+  // stock) can be served by one PO. Only direct-PO lines (RFQ-bound demand is excluded).
+  const consMap = {};   // supplier -> { desc -> { qty, unit, rate, srcs:Set } }
+  const addLine = (sup, desc, qty, unit, rate, src) => {
+    if (!sup || !(qty > 0)) return;
+    const m = (consMap[sup] = consMap[sup] || {});
+    const e = (m[desc] = m[desc] || { description: desc, qty: 0, unit, rate, srcs: new Set() });
+    e.qty += qty; e.srcs.add(src);
+  };
+  buys.forEach(b => { if (!b.dec.recommendRfq) b.rows.forEach(r => addLine(materialMeta(r.description).preferredSupplier, r.description, r.toOrder, r.unit, rateOf(r.description), b.order.woNo)); });
+  below.forEach(r => addLine(r.supplier, r.description, r.suggestQty, r.unit, r.rate, "STOCK"));
+  const consolidation = Object.entries(consMap).map(([supplier, m]) => {
+    const lines = Object.values(m).map(e => ({ ...e, srcs: [...e.srcs] }));
+    const srcCount = new Set(lines.flatMap(l => l.srcs)).size;
+    return { supplier, lines, srcCount, value: lines.reduce((a, l) => a + l.qty * (l.rate || 0), 0) };
+  }).filter(g => g.srcCount >= 2).sort((a, b) => b.value - a.value);
+
   return (
     <div className="space-y-6">
-      {/* Job shortfalls first — buying for a live job is the priority */}
-      <Card title="Job shortfalls — material a live job is missing" action={<span className="text-xs text-muted-foreground">{buys.length} job{buys.length !== 1 ? "s" : ""} short</span>}>
-        {buys.length === 0 ? <Empty title="No job shortfalls" hint="Every approved job is covered by stock or open POs." /> : (
+      {/* Consolidation opportunities — buy once per supplier instead of N separate POs */}
+      {consolidation.length > 0 && (
+        <Card title="Consolidate — same supplier across jobs & stock" action={<span className="text-xs text-muted-foreground">{consolidation.length} supplier{consolidation.length !== 1 ? "s" : ""} · one PO each</span>}>
+          <p className="text-sm text-muted-foreground mb-3">These suppliers feed more than one demand source. Raise a single combined PO to cut paperwork and hit price breaks — the per-job and replenishment rows below still work if you'd rather buy them separately.</p>
           <div className="space-y-3">
-            {buys.map(({ order, rows, dec, value }) => (
+            {consolidation.map(g => (
+              <div key={g.supplier} className="rounded-lg border border-border p-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{g.supplier} <span className="text-muted-foreground font-normal">· {g.lines.length} item{g.lines.length > 1 ? "s" : ""} across {g.srcCount} source{g.srcCount > 1 ? "s" : ""}</span></div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{g.lines.flatMap(l => l.srcs).filter((v, i, a) => a.indexOf(v) === i).map(x => x === "STOCK" ? "Stock" : x).join(" · ")}</div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="num text-sm font-medium">{fmtINR(g.value)}</span>
+                    {!readOnly && <Button onClick={() => raiseFor({ title: `Consolidated PO — ${g.supplier}`, woNo: "MULTI", supplier: g.supplier, items: g.lines.map(l => ({ description: l.description, qty: l.qty, unit: l.unit, rate: l.rate })) })}>Raise one PO →</Button>}
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {g.lines.map(l => <span key={l.description} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs num">{l.description} <b>{fmtNum(l.qty)} {l.unit}</b></span>)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Job shortfalls — most urgent first (overdue / won't-make-the-date at the top) */}
+      <Card title="Job shortfalls — material a live job is missing" action={<span className="text-xs text-muted-foreground">{buys.length} job{buys.length !== 1 ? "s" : ""} short · most urgent first</span>}>
+        {enrichedBuys.length === 0 ? <Empty title="No job shortfalls" hint="Every approved job is covered by stock or open POs." /> : (
+          <div className="space-y-3">
+            {enrichedBuys.map(({ order, rows, dec, value, needBy, daysToNeed, maxLead, lateForJob, risk }) => (
               <div key={order.id} className="rounded-lg border border-border p-4">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0">
-                    <div className="font-mono text-sm num">{order.woNo} <span className="font-sans text-muted-foreground">· {order.client} · {order.config} · Qty {order.qty}</span></div>
+                    <div className="flex items-center gap-2 flex-wrap"><span className="font-mono text-sm num">{order.woNo}</span> <span className="font-sans text-xs text-muted-foreground">· {order.client} · {order.config} · Qty {order.qty}</span> <RiskPill_pu risk={risk} /></div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      {needBy ? <>Need by <b className="text-foreground num">{fmtDate(needBy)}</b> · {daysToNeed < 0 ? `${Math.abs(daysToNeed)}d overdue` : `in ${daysToNeed}d`}{lateForJob && <span className="text-[var(--amber)]"> · {maxLead}d lead won't make it — order now</span>}</> : "No need-by date"}
+                    </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">{dec.reason}</div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -529,22 +599,35 @@ function Expediting_pu({ board, readOnly, openOrder, setPoConfirmed, orders }) {
 }
 
 // ---------- Quotes: RFQ register ----------
-function Quotes_pu({ rfqs, onCompare }) {
-  const { Card, Pill, Table, Empty } = window;
+function Quotes_pu({ rfqs, onCompare, readOnly }) {
+  const { Card, Pill, Button, Table, Empty, toast, logActivity } = window;
+  const STALE_DAYS = 5;
+  const now = Date.now();
+  const remind = (r, pending) => { toast(`Reminder sent to ${pending.length} supplier${pending.length > 1 ? "s" : ""}`); logActivity("Planning", `RFQ ${r.rfqNo} reminder sent to ${pending.join(", ")}`); };
   return (
     <Card title="Request for quotation" action={<span className="text-xs text-muted-foreground">Floated from To buy · awarding raises the PO</span>}>
       {rfqs.length === 0 ? <Empty title="No RFQs yet" hint="Float one from To buy (or a job's Procurement tab) when material is multi-source and above the quote threshold. It lands here to compare & award." /> : (
-        <Table headers={["RFQ No", "W/O", "Items", "Bids in", "Status", ""]}>
+        <Table headers={["RFQ No", "W/O", "Items", "Bids in", "Age", "Status", ""]}>
           {rfqs.map(r => {
             const submitted = r.bids.filter(b => b.submitted).length;
+            const pending = r.bids.filter(b => !b.submitted).map(b => b.supplier);
+            const open = r.status !== "Awarded";
+            const ageDays = r.createdAt ? Math.max(0, Math.round((now - new Date(r.createdAt).getTime()) / 86400000)) : null;
+            const stale = open && ageDays != null && ageDays >= STALE_DAYS;
             return (
-              <tr key={r.id} className="hover:bg-muted/40 cursor-pointer" onClick={() => onCompare(r.id)}>
+              <tr key={r.id} className={`hover:bg-muted/40 cursor-pointer ${stale ? "bg-[color-mix(in_oklab,var(--amber)_6%,transparent)]" : ""}`} onClick={() => onCompare(r.id)}>
                 <td className="px-4 py-3 font-mono text-xs num">{r.rfqNo}</td>
                 <td className="px-4 py-3 font-mono text-xs num">{r.woNo}</td>
                 <td className="px-4 py-3 num text-xs">{r.items.length}</td>
                 <td className="px-4 py-3 num text-xs">{submitted}/{r.bids.length}</td>
+                <td className="px-4 py-3 num text-xs">{ageDays == null ? "—" : <span className={stale ? "text-[var(--amber)] font-medium" : "text-muted-foreground"}>{ageDays}d{stale ? " · stale" : ""}</span>}</td>
                 <td className="px-4 py-3">{r.status === "Awarded" ? <Pill tone="done">Awarded · {r.awardedSupplier}</Pill> : <Pill tone="active">Open</Pill>}</td>
-                <td className="px-4 py-3 text-right text-xs text-muted-foreground">Compare →</td>
+                <td className="px-4 py-3 text-right text-xs">
+                  <div className="flex items-center justify-end gap-3">
+                    {open && pending.length > 0 && !readOnly && <button onClick={(e) => { e.stopPropagation(); remind(r, pending); }} className="font-medium text-primary hover:underline" title={`Awaiting: ${pending.join(", ")}`}>Remind {pending.length} →</button>}
+                    <span className="text-muted-foreground">Compare →</span>
+                  </div>
+                </td>
               </tr>
             );
           })}
