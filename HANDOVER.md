@@ -19,12 +19,12 @@ A **domain-specific operations console** for **panel & wire-harness contract ass
 | `app.jsx` | Root: session + module router (`renderModule(role, key)`) |
 | `shell.jsx` | Login, sidebar nav per role (`getRoleNav`), header, role switcher, `ICONS` |
 | `ui.jsx` | Primitives: Card, Pill, Button, Table, Modal, Select, Empty, Toaster, formatters |
-| `workspace.jsx` | **Order workspace** — guided gated pipeline for one W/O. Tabs: Overview · Documents · BOM · Costing & Quote · Procurement |
+| `workspace.jsx` | **Order workspace** — guided gated pipeline for one W/O. Tabs: Overview · Documents · BOM · Costing & Quote · Approval · Procurement · Build & recovery. **Separation of duties:** `canDefine=role==="Planning"` (docs/BOM/delivery), `canCommerce=role==="Procurement"` (costing/approval/procurement) |
 | `planning.jsx` | Orders & BOM register + Planning dashboard |
 | `release.jsx` | **Release board** (added) — material-gated kanban: Awaiting approval / Blocked / Ready / On floor / QC |
 | `schedule.jsx` | **Schedule & load** (added) — week-by-week build hours vs editable bench capacity, backward-scheduled from due dates |
-| `costing.jsx` | Costing worklist (thin — real costing is in workspace) |
-| `purchase.jsx` | Purchase page — to-order by job, RFQ float/compare/award, PO register |
+| `costing.jsx` | **Client quotes** worklist (sell-side; thin — real costing is in workspace) |
+| `purchase.jsx` | **Procurement desk** — `Purchase` renders sidebar views: **Sourcing** group (`GROUPS.sourcing` = To buy + RFQ sub-tabs), Purchase orders (expedite + register), Bills (3-way match + MSME), Suppliers. Internal RFQ view key is `rfq` (was `sourcing`). Director sees the combined Seg desk |
 | `stores.jsx` | Inventory: goods inward + incoming QC (calls `addToStock` on accept), stock, issue-to-job |
 | `quality-kpi.jsx` | **Quality KPI dashboard** (added) — FPY, OTD, supplier rejection, COPQ, complaints, audit closure |
 | `director.jsx` | Read-only oversight dashboard |
@@ -32,12 +32,27 @@ A **domain-specific operations console** for **panel & wire-harness contract ass
 ## Lifecycle (11 stages, in `STAGES`)
 RFQ → Final BOM → Costing → Quote → Approved → PO → Incoming QC → Stores → Build → Final QC → Dispatch
 
-**Stage ownership:** Planning owns RFQ→PO (the 5 workspace tabs). Inventory owns Incoming QC→Stores. Quality owns Build→Final QC→Dispatch. This is why the workspace "only" has 5 tabs — by design, but see backlog #1.
+**Stage / tab ownership (separation of duties):** Planning *defines* (Documents, BOM, Build & recovery); **Procurement** *prices & buys* (Costing & Quote, Approval, Procurement). Inventory owns Incoming QC→Stores; Quality owns Final QC→Dispatch. Workspace has 6 steps + Overview.
 
 ## Roles
-Planning · Inventory · Quality · Director. Switch via avatar menu. Planning nav now: Dashboard · **Release board** · **Schedule & load** · Orders & BOM · Costing · Purchase. Quality nav: **Quality KPIs** · Final QC · QC records.
+Director · Planning · **Procurement** · Inventory · Quality (demo names: Mihir Borker / Prakash / Poonam / Anjali / Rohan — all log in with the same `mihir@readysystems.in` / `demo@123`, switch via avatar menu). Per-role nav (`getRoleNav` in `shell.jsx`):
+- **Director:** Dashboard · Work orders · Projects · Release board · Purchase · Client quotes · Inventory · Quality KPIs · Quality
+- **Planning:** Dashboard · Work orders · Release board · Schedule & load
+- **Procurement:** Dashboard · Client quotes · Sourcing · Purchase orders · Bills · Suppliers
+- **Inventory:** Inward + QC · Stock on hand · Issue to job
+- **Quality:** Quality KPIs · Final QC · QC records
 
-## Recently completed (this session)
+## Recently completed (Jun 2026 — Procurement clarity, Sourcing upgrades, docs)
+
+- **Procurement naming de-collided.** Sidebar `Quoting` → **Client quotes** (`costing.jsx`, sell-side) and `Buy plan` + `Quotes` merged into **Sourcing** (`purchase.jsx`) with **To buy** + **RFQ** sub-tabs. A dedicated **Procurement** role was split out in `getRoleNav` (Planning no longer carries costing/purchase). Internal RFQ view key renamed `sourcing` → `rfq`; `GROUPS.sourcing` drives the grouped sub-tab page.
+- **Sourcing desk upgraded** (`purchase.jsx`):
+  1. **KPI strip** on the Sourcing page — To commit (₹) / Jobs short / Open RFQs / Bids to award.
+  2. **Urgency-first To buy** — job shortfalls show need-by date + `RiskPill_pu`, sorted most-urgent first; flags `lateForJob` when `maxLead > daysToNeed` ("lead won't make it — order now").
+  3. **Demand consolidation** — `ToBuy_pu` aggregates direct-PO + replenishment lines by preferred supplier; when one supplier spans ≥2 sources it offers a single combined PO (`woNo: "MULTI"`). Additive — per-job/per-supplier paths untouched.
+  4. **RFQ aging + chase** — `Quotes_pu` adds an **Age** column (stale ≥5d, uses `createdAt`) and a **Remind** action targeting non-responding bidders (toast + `logActivity`). `readOnly` threaded through `Sourcing_pu`.
+- **Docs refreshed.** Added `PARTNER-GUIDE.md` (plain-English partner/presentation reference). Updated `APPLICATION-GUIDE.md`, `README.md`, `PRESENTER-GUIDE.md` and this file for the new roles/nav/Procurement naming and separation of duties.
+
+## Recently completed (earlier session)
 
 ### Backlog cleared (all four items)
 1. **Workspace dead-end closed.** New 6th step **Build & delivery** (`DeliveryTab` in `workspace.jsx`) — read-only timeline of Build → Final QC → Dispatch pulling live `issues` / `finalQcJobs` / `qcRecords` from the store. Opens once a job is at Build or beyond; locked with a pointer before that. `pipeline()` is now downstream-aware (`inDelivery`, delivery `next` states) and `stepState` covers the new step.

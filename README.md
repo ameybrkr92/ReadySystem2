@@ -19,6 +19,7 @@ Purchase, Stores, Quality — connected by one job ID (the Siemens W/O No).
 | `layout-3d.html` | 3D layout-board & harness visualiser (Three.js) |
 | `Ready-Systems-Presentation.html` | **Interactive client deck** — animated, scrolling web presentation (charts, KPI gauges, live pipeline). Present from this; it also has a print stylesheet → clean PDF |
 | `Ready-Systems-Presentation.pdf` | Exported PDF of the deck (for sharing / projectors that can't run the animations) |
+| `PARTNER-GUIDE.md` | **Partner guide** — plain-English overview of the whole app, the costing engine, every module (incl. the upgraded Sourcing desk) and a demo script; the best single doc to read before presenting |
 | `APPLICATION-GUIDE.md` | **Full application reference** — every role, screen, module, the lifecycle, the costing engine and the demo dataset, written so the presenter never feels lost |
 | `PRESENTER-GUIDE.md` | **Presenter's guide** — narrative, per-section talking points, a live-demo script and likely Q&A for whoever delivers the pitch |
 | `vite-app/` | Optional production build scaffold (Vite+TS) — **behind the static POC**, regenerate from final design before using |
@@ -64,6 +65,7 @@ Zip this folder (or just its files) and drop it on vercel.com → it serves as a
 
 - **Costing engine** lives in `js/store.jsx` (`FEEDER_LIBRARY`, `parseConfig`, `generateHarness`,
   `computeCosting`). This is the piece to validate against real orders with the owner.
-- **Job-centric workspace** (`js/workspace.jsx`): open any order to get Overview · Harness BOM ·
-  Costing · Procurement · Documents in one place.
+- **Job-centric workspace** (`js/workspace.jsx`): open any order to get Documents · BOM ·
+  Costing & Quote · Approval · Procurement · Build & recovery in one place. Planning owns
+  *define* (docs/BOM/build); Procurement owns *price & buy* (costing/approval/procurement).
 - **Receipts are automatic** — a PO becomes Partial/Received when Inventory logs goods inward in Stores.

@@ -4,6 +4,10 @@ A complete, detailed reference to **what the application does and how every scre
 written so you can present and demo with total confidence and answer any question without
 feeling lost. Companion to `PRESENTER-GUIDE.md` (the talking-points/pitch script).
 
+> **New:** for a partner-facing, plain-English overview see **`PARTNER-GUIDE.md`** — it's the
+> best single document to read before a presentation. This guide is the deeper screen-by-screen
+> reference.
+
 > If you read nothing else, read **§2 (roles)**, **§3 (lifecycle)** and **§4 (the order
 > workspace)** — those three cover 80% of what you'll show and be asked about.
 
@@ -57,23 +61,25 @@ around the build: quoting, BOM, purchase, stores and quality — connected by on
 
 **Login:** `mihir@readysystems.in` / `demo@123` (same for every role in the demo).
 
-**Switch role** from the **avatar menu** (top-right). One login can hop between all four roles —
-realistic for a small shop. The four demo identities:
+**Switch role** from the **avatar menu** (top-right). One login can hop between all five roles —
+realistic for a small shop. The five demo identities:
 
 | Role | Demo name | What they do |
 |---|---|---|
 | **Director** | Mihir Borker | Read-only oversight of the whole shop |
-| **Planning** | Rohan Deshpande | Orders, BOM, costing, quoting, procurement, releasing to the floor |
-| **Inventory** | Anjali Kulkarni | Goods inward + incoming QC, stock, issue to job |
-| **Quality** | Sameer Joshi | Final QC gate, QC records, quality KPIs |
+| **Planning** | Prakash | Order entry, documents, BOM, releasing to the floor, scheduling |
+| **Procurement** | Poonam | Pricing/quoting to the client, buying material, POs, bills, suppliers |
+| **Inventory** | Anjali | Goods inward + incoming QC, stock, issue to job |
+| **Quality** | Rohan | Final QC gate, QC records, quality KPIs |
 
 **The shell:** left **sidebar** = the modules available to the current role; top bar = who you're
 signed in as. At the bottom of the sidebar there's a **"Presentation ↗"** link and the
 **"Reset demo data"** button (Director only).
 
 **Each role's sidebar menu:**
-- **Director:** Dashboard · Orders · Projects · Release board · Purchase · Costing · Inventory · Quality KPIs · Quality
-- **Planning:** Dashboard · Release board · Schedule & load · Orders & BOM · Costing · Purchase
+- **Director:** Dashboard · Work orders · Projects · Release board · Purchase · Client quotes · Inventory · Quality KPIs · Quality
+- **Planning:** Dashboard · Work orders · Release board · Schedule & load
+- **Procurement:** Dashboard · Client quotes · Sourcing · Purchase orders · Bills · Suppliers
 - **Inventory:** Inward + QC · Stock on hand · Issue to job
 - **Quality:** Quality KPIs · Final QC · QC records
 
@@ -114,10 +120,15 @@ the dashboards.
 
 ## 4. The order workspace (the 6 tabs)
 
-Open any order (from Orders, the dashboard, the release board, etc.) to get a **guided, gated
+Open any order (from Work orders, the dashboard, the release board, etc.) to get a **guided, gated
 pipeline** for that one job. The tab strip shows each step; locked steps can't be opened until
 their precondition is met. There's also an **Overview** tab (summary) and a **"Next" banner**
 that always points to the single most useful action.
+
+> **Separation of duties:** the **Planning** role owns Documents, BOM and Build & recovery;
+> the **Procurement** role owns Costing & Quote, Approval and Procurement. Other roles see the
+> workspace read-only. (One demo login switches between roles, so you can still walk the whole
+> flow yourself.)
 
 ### Tab 1 — Documents
 Attach files that travel with the job: **Schematic, Layout board, GA drawing, Datasheet, Other**.
@@ -216,47 +227,67 @@ it's **sole-source**. These drive the buy decisions (stock vs project, RFQ vs di
 
 ## 6. Planning module
 
-Planning is the buyer/planner cockpit. Menu items:
+Planning **defines** the job — order entry, documents, BOM, releasing to the floor, scheduling.
+(Pricing and buying belong to the **Procurement** role, see §7 — this split is the
+*separation of duties* the workspace enforces.) Menu items:
 
 - **Dashboard** — Planning's overview: live order pipeline, what needs attention, quick stats.
+- **Work orders** — the full order list (filter/search), the entry point to each order's workspace.
 - **Release board** — jobs ready to be released to the floor: shows whether **material is
   covered** and lets Planning **release** an approved, material-secured job to Build.
-- **Schedule & load** — capacity/loading view: build hours per job against available capacity,
-  so you can sequence the floor.
-- **Orders & BOM** — the full order list (filter/search), entry point to each order's workspace.
-- **Costing** — a cross-job costing view (margins, quote values across orders).
-- **Purchase** — the Procurement desk (see §7).
+- **Schedule & load** — capacity/loading view: build hours per job against available bench
+  capacity, so you can sequence the floor.
 
-The Director sees read-only versions of most of these.
+The Director sees read-only versions of most screens.
 
 ---
 
-## 7. Procurement desk
+## 7. Procurement module
 
-A buyer's cockpit **across every job**, organised around the buying lifecycle. Six tabs:
+The buyer's cockpit **across every job**. The Procurement role owns pricing/quoting (sell-side)
+and all buying (buy-side). Sidebar: **Dashboard · Client quotes · Sourcing · Purchase orders ·
+Bills · Suppliers**.
 
-### Today (the landing)
-A single **prioritised action queue** — each row has a one-click action:
-- **Job shortfalls** (approved jobs missing material) → Raise PO / Float RFQ
-- **Bids to award** (RFQs with quotes in) → Compare & award
-- **POs overdue / at-risk** → Mark confirmed / expedite
-- **Stock below reorder** → Raise replenishment PO
-- **Invoice exceptions / MSME due** → Review
-Plus a KPI strip (below reorder, job shortfalls, bids to award, POs overdue, invoice alerts).
+> **Naming (you'll be asked):** **Client quotes** is the price you send the **customer**
+> (sell-side); the **RFQ** under Sourcing is suppliers quoting **you** (buy-side). Opposite sides
+> of the deal — they used to both be called "quote", which was confusing, so they're now named
+> distinctly the way SAP/Oracle keep them apart.
 
-### To buy
-All demand in one place — **job shortfalls** and **stock replenishment** — each raised through
-**one shared "Raise PO" form** (supplier, editable line items, rate, ETA).
+### Dashboard
+The start-of-day view — KPIs for spend and supply health, plus a **prioritised action queue**
+(job shortfalls, bids to award, overdue POs, stock below reorder, invoice alerts), each row
+click-through to the relevant desk.
 
-### Sourcing (RFQs)
-**Float** an RFQ to 2–3 suppliers, then **Compare bids** side by side. The compare view shows
-each supplier's total, lead time and **reliability rating** (from Quality records), flags the
-cheapest (**L1**), and warns if L1 isn't the best-rated. **Awarding** a bid raises the PO and
-moves the job to PO.
+### Client quotes (sell-side)
+The worklist of jobs awaiting pricing. Open one to run the **costing engine** (see §5), set the
+margin, and send the customer a quote. *This is the price to the customer — not supplier cost.*
 
-### Orders
+### Sourcing (buy-side)
+One page covering "decide what to buy and from whom", with a summary KPI strip
+(**To commit · Jobs short · Open RFQs · Bids to award**) and **two sub-tabs**:
+
+- **To buy** — all demand in one list:
+  - **Job shortfalls** — material a live job is missing, each showing the job's **need-by date and
+    urgency pill**, sorted **most-urgent first**. If supplier lead time can't make the date it
+    flags **"lead won't make it — order now"**.
+  - **Replenishment** — consumables below reorder level, grouped into **one PO per supplier**.
+  - **Consolidate** — when one supplier feeds 2+ demand sources (several jobs, or a job + stock),
+    it offers a **single combined PO** to cut paperwork and hit price breaks (only shown when
+    there's a real overlap).
+  - Each row raises a PO (or floats an RFQ) through one shared form.
+- **RFQ** — the request-for-quotation register. **Float** to 2–3 suppliers, then **Compare bids**
+  side by side. The register shows **how long each RFQ has been open** (flagged "stale" once it
+  ages) and a **"Remind"** action that nudges only the non-responding suppliers. Compare shows each
+  supplier's total, lead time and **reliability rating** (from Quality records), flags the cheapest
+  (**L1**), and warns if L1 isn't the best-rated. **Awarding raises the PO automatically.**
+
+> For multi-source material above the **₹25,000** threshold the system recommends an RFQ; for
+> low-value or sole-source items, a direct PO. Once an RFQ is open for a job, the direct-PO button
+> is hidden so you can't double-order.
+
+### Purchase orders
 Every PO in two views: **Expediting** (open POs, ETA from supplier lead time, overdue first,
-"Mark confirmed" to record supplier acknowledgement) and the full **PO register** (filter
+"Mark confirmed" to record supplier acknowledgement) and the full **register** (filter
 all / open / received). Receipt stays automatic from Stores.
 
 ### Bills (invoices)

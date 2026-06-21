@@ -105,7 +105,9 @@ earns the right to the next.
 
 Run this in the console after the deck. Narrate as you click.
 
-1. **Sign in** as Planning. *"This is the buyer/planner's view."*
+1. **Sign in as Procurement** (the person who prices & buys). *"Planning enters the order,
+   documents and BOM; Procurement prices it and buys the material — one login switches between
+   them, so I'll show both sides."*
 2. **Open an order** (e.g. `RS-WO-24-0017`) → **Costing & Quote** tab. Show the cost build-up
    and margin slider. *"Change the margin, the quote updates live."*
 3. **Send the quote**, then **Record client decision → Approved** with a client reference.
@@ -114,8 +116,8 @@ Run this in the console after the deck. Narrate as you click.
 4. **Procurement** tab → show the shortfall, then **Raise PO** (or float an RFQ). *"It only asks
    you to order the shortfall — it nets against stock and open POs."*
 5. **Switch role → Inventory** → **Issue to job**. *"Issuing material puts the job on the floor."*
-6. Back to the order → **Build & recovery** → **Mark build complete**. *"The floor decides when
-   it's ready for QC — not the system."*
+6. **Switch role → Planning** → open the order → **Build & recovery** → **Mark build complete**.
+   *"The floor decides when it's ready for QC — not the system."*
 7. **Switch role → Quality** → **Final QC** → Inspect → try **Reject → rework**. *"A failed job
    goes back to the floor with its report attached, then comes back through the gate."*
 8. **Quality KPIs** → show the dashboard. **Switch role → Director** → *"And the owner sees all
